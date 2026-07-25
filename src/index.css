@@ -78,7 +78,13 @@ body {
   overscroll-behavior: none;
 }
 
-/* Evita que un doble toque haga zoom en pantallas táctiles */
+/* Nada de zoom con los dedos ni con el doble toque: se sigue pudiendo
+   desplazar las listas, pero no ampliar la pantalla sin querer */
+html,
+body {
+  touch-action: pan-x pan-y;
+}
+
 button {
   touch-action: manipulation;
 }

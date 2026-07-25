@@ -80,6 +80,9 @@ export function Inicio({ onIr }: { onIr: (destino: Destino) => void }) {
   const diferencia = cobradoHoy - cobradoAyer
   const sinCobrar = abiertos.reduce((s, t) => s + t.total, 0)
 
+  // Mesas que se quedaron abiertas de un día para otro: conviene no perderlas de vista
+  const olvidadas = abiertos.filter((t) => aDiaLocal(new Date(t.abiertoEn)) < hoy)
+
   const pendientes = aCuenta.filter((t) => t.facturaId === null)
   const totalPendiente = pendientes.reduce((s, t) => s + t.total, 0)
   const clientesPendientes = new Set(pendientes.map((t) => t.clienteId)).size
@@ -115,6 +118,16 @@ export function Inicio({ onIr }: { onIr: (destino: Destino) => void }) {
             texto="El navegador ha olvidado el permiso de una carpeta de copias y hoy no se ha podido guardar."
             accion="Arreglarlo"
             onAccion={() => onIr('ajustes')}
+          />
+        )}
+        {olvidadas.length > 0 && (
+          <Aviso
+            tono="ambar"
+            texto={`${olvidadas.length === 1 ? 'Hay una mesa abierta de otro día' : `Hay ${olvidadas.length} mesas abiertas de otros días`}: ${olvidadas
+              .map((t) => t.mesaNombre)
+              .join(', ')}. Se guardan tal cual hasta que las cobres o las anules.`}
+            accion="Ver mesas"
+            onAccion={() => onIr('mesas')}
           />
         )}
         {abiertos.length > 0 && (

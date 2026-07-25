@@ -133,6 +133,53 @@ export function Modal({
   )
 }
 
+/**
+ * Confirmación para las cosas que no tienen vuelta atrás.
+ *
+ * En vez del cuadro del navegador, que se acepta sin leerlo, esta enseña
+ * exactamente qué se va a perder y obliga a apuntar al botón rojo.
+ */
+export function Confirmar({
+  abierto,
+  titulo,
+  aviso,
+  detalle,
+  textoBoton,
+  onConfirmar,
+  onCerrar,
+}: {
+  abierto: boolean
+  titulo: string
+  aviso: ReactNode
+  detalle?: ReactNode
+  textoBoton: string
+  onConfirmar: () => void
+  onCerrar: () => void
+}) {
+  return (
+    <Modal abierto={abierto} onCerrar={onCerrar} titulo={titulo}>
+      <div className="mb-4 rounded-2xl border border-[#F0D3CC] bg-[#FFF7F5] px-5 py-4 text-anular">
+        {aviso}
+      </div>
+
+      {detalle && (
+        <div className="mb-4 rounded-xl border border-borde bg-white px-4 py-3 text-sm">
+          {detalle}
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        <Boton tono="neutro" onClick={onCerrar} className="flex-1 !py-4 !text-base">
+          No, dejarlo como está
+        </Boton>
+        <Boton tono="peligro" onClick={onConfirmar} className="flex-1 !py-4 !text-base">
+          {textoBoton}
+        </Boton>
+      </div>
+    </Modal>
+  )
+}
+
 export function Vacio({ children }: { children: ReactNode }) {
   return (
     <div className="rounded-2xl border border-dashed border-cafe-300 bg-white/60 px-6 py-12 text-center leading-relaxed font-semibold text-cafe-400">

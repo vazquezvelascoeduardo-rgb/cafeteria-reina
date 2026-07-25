@@ -1,7 +1,17 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db, type Cliente, type Producto } from '../db'
-import { Boton, Campo, Entrada, Etiqueta, Importe, Modal, Vacio, claseInput } from '../components/ui'
+import {
+  Boton,
+  Campo,
+  Confirmar,
+  Entrada,
+  Etiqueta,
+  Importe,
+  Modal,
+  Vacio,
+  claseInput,
+} from '../components/ui'
 import { TecladoNumerico } from '../components/TecladoNumerico'
 import { IconoCajon } from '../components/iconos'
 import {
@@ -43,7 +53,9 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [buscando, setBuscando] = useState(false)
-  const [modal, setModal] = useState<'cobro' | 'cuenta' | 'libre' | 'mover' | 'separar' | null>(null)
+  const [modal, setModal] = useState<
+    'cobro' | 'cuenta' | 'libre' | 'mover' | 'separar' | 'anular' | null
+  >(null)
   // Lo que se lleva la persona a la que se está cobrando su parte
   const [parte, setParte] = useState<{ seleccion: Seleccion; total: number } | null>(null)
 
@@ -279,9 +291,13 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
             </Boton>
             <Boton
               onClick={async () => {
-                if (!vacia && !confirm('¿Seguro que quieres anular esta comanda entera?')) return
-                await anularTicket(ticketId)
-                onSalir()
+                // Una comanda vacía no tiene nada que perder: se cierra sin más
+                if (vacia) {
+                  await anularTicket(ticketId)
+                  onSalir()
+                  return
+                }
+                setModal('anular')
               }}
               className="border border-[#F0D3CC] bg-[#FFF7F5] text-anular hover:bg-[#FDEDE9]"
             >
@@ -353,6 +369,37 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
           // Si ya no queda nada en la mesa, se vuelve a la lista de mesas
           const queda = await db.tickets.get(ticketId)
           if (!queda) onSalir()
+        }}
+      />
+
+      <Confirmar
+        abierto={modal === 'anular'}
+        titulo={`Anular la comanda de ${ticket.mesaNombre}`}
+        aviso={
+          <>
+            <b>Se va a borrar la cuenta entera y no se puede recuperar.</b>
+            <br />
+            Si lo que quieres es cobrarla, cierra esto y usa el botón verde de cobrar.
+          </>
+        }
+        detalle={
+          <>
+            <div className="mb-2 font-bold">Se perderán {formatearEuros(ticket.total)}:</div>
+            <ul className="space-y-0.5 text-cafe-600">
+              {ticket.lineas.map((l, i) => (
+                <li key={i}>
+                  {l.cantidad} × {l.nombre}
+                </li>
+              ))}
+            </ul>
+          </>
+        }
+        textoBoton="Sí, anular la comanda"
+        onCerrar={() => setModal(null)}
+        onConfirmar={async () => {
+          await anularTicket(ticketId)
+          setModal(null)
+          onSalir()
         }}
       />
 
