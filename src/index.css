@@ -1,0 +1,73 @@
+@import 'tailwindcss';
+
+@theme {
+  --color-cafe-50: #faf7f2;
+  --color-cafe-100: #f2e9dd;
+  --color-cafe-200: #e4d2ba;
+  --color-cafe-300: #d1b48e;
+  --color-cafe-400: #b98f60;
+  --color-cafe-500: #a3743f;
+  --color-cafe-600: #7c4a2d;
+  --color-cafe-700: #5e3722;
+  --color-cafe-800: #40261a;
+  --color-cafe-900: #2a1912;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-cafe-50);
+  color: var(--color-cafe-900);
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Evita que un doble toque haga zoom en pantallas táctiles */
+button {
+  touch-action: manipulation;
+}
+
+/* Oculta las flechitas de los input number */
+input[type='number']::-webkit-outer-spin-button,
+input[type='number']::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+
+/* ---- Impresión: solo se imprime la factura ---- */
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-imprimir {
+    display: none !important;
+  }
+  /* La factura se muestra en una capa flotante: al imprimir la devolvemos
+     al flujo normal para que pueda ocupar varias páginas */
+  .overlay-factura {
+    position: static !important;
+    overflow: visible !important;
+    background: #fff !important;
+    padding: 0 !important;
+  }
+  .hoja-factura {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+  }
+  @page {
+    size: A4;
+    margin: 16mm;
+  }
+}
