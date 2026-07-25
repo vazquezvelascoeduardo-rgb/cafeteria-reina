@@ -151,24 +151,44 @@ export async function moverTicket(ticketId: number, mesaId: number, mesaNombre: 
   })
 }
 
-/** Cierra el ticket como cobrado (efectivo o tarjeta) */
+/**
+ * Cierra el ticket como cobrado (efectivo o tarjeta) y le asigna su número de
+ * factura simplificada, que es lo que va impreso en el papel que se entrega.
+ * El número se reserva dentro de la transacción para que no se repita nunca.
+ */
 export async function cobrarTicket(
   ticketId: number,
   metodoPago: Exclude<MetodoPago, 'cuenta'>,
   recibido: number | null,
-) {
-  const ticket = await db.tickets.get(ticketId)
-  if (!ticket || ticket.estado !== 'abierto') return
+): Promise<Ticket | null> {
+  return db.transaction('rw', db.tickets, db.ajustes, async () => {
+    const ticket = await db.tickets.get(ticketId)
+    if (!ticket || ticket.estado !== 'abierto') return null
 
-  const total = totalLineas(ticket.lineas)
-  await db.tickets.update(ticketId, {
-    estado: 'cobrado',
-    metodoPago,
-    total,
-    recibido: metodoPago === 'efectivo' ? recibido : null,
-    cambio: metodoPago === 'efectivo' && recibido !== null ? recibido - total : null,
-    cerradoEn: Date.now(),
-    dia: aDiaLocal(),
+    const ajustes = await db.ajustes.get(1)
+    const dia = aDiaLocal()
+    const ejercicio = Number(dia.slice(0, 4))
+
+    let numero = ticket.numero ?? null
+    if (ajustes && !numero) {
+      const contador = ajustes.ejercicioTicket === ejercicio ? ajustes.contadorTicket + 1 : 1
+      numero = `${ajustes.serieTicket}-${ejercicio}-${String(contador).padStart(4, '0')}`
+      await db.ajustes.update(1, { contadorTicket: contador, ejercicioTicket: ejercicio })
+    }
+
+    const total = totalLineas(ticket.lineas)
+    const cambios = {
+      numero,
+      estado: 'cobrado' as const,
+      metodoPago,
+      total,
+      recibido: metodoPago === 'efectivo' ? recibido : null,
+      cambio: metodoPago === 'efectivo' && recibido !== null ? recibido - total : null,
+      cerradoEn: Date.now(),
+      dia,
+    }
+    await db.tickets.update(ticketId, cambios)
+    return { ...ticket, ...cambios }
   })
 }
 

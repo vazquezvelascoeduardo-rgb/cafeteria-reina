@@ -7,6 +7,7 @@ import { eurosACentimos, formatearEuros } from '../lib/dinero'
 import { aDiaLocal, aMesLocal, formatearDia, formatearHora, rangoDeMes } from '../lib/fechas'
 import { reabrirTicket } from '../lib/acciones'
 import { descargar, generarHojas } from '../lib/exportar'
+import { imprimirTicket } from '../lib/ticket'
 
 export function Caja() {
   const [mes, setMes] = useState(() => aMesLocal())
@@ -22,6 +23,7 @@ export function Caja() {
   )
   const tickets = useLiveQuery(() => db.tickets.where('dia').equals(dia).toArray(), [dia], [])
   const abiertos = useLiveQuery(() => db.tickets.where('estado').equals('abierto').toArray(), [], [])
+  const ajustes = useLiveQuery(() => db.ajustes.get(1), [])
 
   const importesPorDia = new Map<string, number>()
   for (const t of ticketsDelMes) {
@@ -191,7 +193,15 @@ export function Caja() {
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums">
                         {formatearEuros(t.total)}
                       </td>
-                      <td className="px-4 py-2.5 text-right">
+                      <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                        {ajustes && t.estado === 'cobrado' && (
+                          <button
+                            onClick={() => imprimirTicket(t, ajustes)}
+                            className="rounded-lg px-2 py-1 text-xs font-semibold text-cafe-500 hover:bg-cafe-100 hover:text-cafe-800"
+                          >
+                            Imprimir
+                          </button>
+                        )}
                         {t.facturaId === null ? (
                           <button
                             onClick={() => {

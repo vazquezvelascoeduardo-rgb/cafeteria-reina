@@ -34,6 +34,22 @@ export function eurosACentimos(texto: string): number | null {
   return Math.round(valor * 100)
 }
 
+/**
+ * Deja solo lo que puede formar un importe mientras se escribe: cifras y una
+ * coma, con dos decimales como mucho. El punto del teclado numérico se acepta
+ * como coma, que es lo que uno teclea sin pensar.
+ */
+export function limpiarImporte(texto: string): string {
+  const soloCifras = texto.replace(/\./g, ',').replace(/[^0-9,]/g, '')
+
+  const trozos = soloCifras.split(',')
+  const enteros = trozos[0].replace(/^0+(?=\d)/, '')
+  if (trozos.length === 1) return enteros
+
+  // Si alguien pega "1,2,3" nos quedamos con la primera coma
+  return `${enteros},${trozos.slice(1).join('').slice(0, 2)}`
+}
+
 /** Total de una línea (precio unitario x cantidad) */
 export function totalLinea(linea: LineaTicket): number {
   return linea.precio * linea.cantidad

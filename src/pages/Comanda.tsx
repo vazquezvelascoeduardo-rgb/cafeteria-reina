@@ -3,7 +3,15 @@ import { useMemo, useState } from 'react'
 import { db, type Cliente, type Producto } from '../db'
 import { Boton, Campo, Entrada, Etiqueta, Importe, Modal, Vacio, claseInput } from '../components/ui'
 import { TecladoNumerico } from '../components/TecladoNumerico'
-import { desglosarCambio, eurosACentimos, formatearEuros, sugerenciasPago, totalLinea } from '../lib/dinero'
+import {
+  desglosarCambio,
+  eurosACentimos,
+  formatearEuros,
+  limpiarImporte,
+  sugerenciasPago,
+  totalLinea,
+} from '../lib/dinero'
+import { imprimirTicket } from '../lib/ticket'
 import {
   anadirLineaLibre,
   anadirProducto,
@@ -24,6 +32,7 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
     [],
   )
   const clientes = useLiveQuery(() => db.clientes.orderBy('nombre').toArray(), [], [])
+  const ajustes = useLiveQuery(() => db.ajustes.get(1), [])
 
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState('')
@@ -225,9 +234,12 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
       <ModalCobro
         abierto={modal === 'cobro'}
         total={ticket.total}
+        imprimir={ajustes?.imprimirAlCobrar === 1}
+        onCambiarImprimir={(valor) => db.ajustes.update(1, { imprimirAlCobrar: valor ? 1 : 0 })}
         onCerrar={() => setModal(null)}
         onCobrar={async (metodo, recibido) => {
-          await cobrarTicket(ticketId, metodo, recibido)
+          const cobrado = await cobrarTicket(ticketId, metodo, recibido)
+          if (cobrado && ajustes?.imprimirAlCobrar === 1) imprimirTicket(cobrado, ajustes)
           setModal(null)
           onSalir()
         }}
@@ -302,11 +314,15 @@ function BotonProducto({
 function ModalCobro({
   abierto,
   total,
+  imprimir,
+  onCambiarImprimir,
   onCerrar,
   onCobrar,
 }: {
   abierto: boolean
   total: number
+  imprimir: boolean
+  onCambiarImprimir: (valor: boolean) => void
   onCerrar: () => void
   onCobrar: (metodo: 'efectivo' | 'tarjeta', recibido: number | null) => void
 }) {
@@ -335,13 +351,29 @@ function ModalCobro({
           </div>
 
           <div className="grid grid-cols-2 gap-2.5">
-            <div className="rounded-xl border border-cafe-200 bg-white px-3 py-2.5">
-              <div className="text-[10.5px] font-extrabold tracking-widest text-cafe-500 uppercase">
+            <div className="rounded-xl border border-cafe-200 bg-white px-3 py-2 focus-within:border-oro focus-within:ring-2 focus-within:ring-oro/20">
+              <label
+                htmlFor="paga-con"
+                className="text-[10.5px] font-extrabold tracking-widest text-cafe-500 uppercase"
+              >
                 Paga con
-              </div>
-              <div className="text-[28px] leading-tight font-extrabold tabular-nums">
-                {texto || '0'}
-              </div>
+              </label>
+              {/* Se puede escribir con el teclado del ordenador, que es más rápido */}
+              <input
+                id="paga-con"
+                autoFocus
+                inputMode="decimal"
+                placeholder="0"
+                value={texto}
+                onChange={(e) => setTexto(limpiarImporte(e.target.value))}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && suficiente) {
+                    setTexto('')
+                    onCobrar('efectivo', recibido)
+                  }
+                }}
+                className="w-full bg-transparent text-[28px] leading-tight font-extrabold tabular-nums outline-none placeholder:text-cafe-300"
+              />
             </div>
             <div
               className={`rounded-xl px-3 py-2.5 ${
@@ -414,6 +446,16 @@ function ModalCobro({
             ))}
           </div>
           <TecladoNumerico valor={texto} onCambio={setTexto} className="flex-1" />
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl border border-borde bg-white px-4 py-2.5">
+            <input
+              type="checkbox"
+              checked={imprimir}
+              onChange={(e) => onCambiarImprimir(e.target.checked)}
+              className="h-5 w-5 accent-cafe-800"
+            />
+            <span className="text-sm font-bold text-cafe-600">Imprimir el ticket al cobrar</span>
+          </label>
         </div>
       </div>
     </Modal>

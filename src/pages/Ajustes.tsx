@@ -1,6 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { db, type Categoria, type DatosEmisor, type Mesa, type Producto } from '../db'
+import { db, type Categoria, type DatosEmisor, type Mesa, type Producto, type Ticket } from '../db'
+import { Logo } from '../components/Logo'
+import { prepararLogo } from '../lib/imagen'
+import { imprimirTicket } from '../lib/ticket'
 import { Boton, Campo, Entrada, Etiqueta, Modal, Tarjeta, Vacio, claseInput } from '../components/ui'
 import { eurosACentimos, formatearEuros, formatearNumero } from '../lib/dinero'
 import { exportarCopia, importarCopia } from '../lib/acciones'
@@ -32,12 +35,13 @@ import {
   trimestreDe,
 } from '../lib/fechas'
 
-type Seccion = 'negocio' | 'carta' | 'mesas' | 'copia'
+type Seccion = 'negocio' | 'carta' | 'mesas' | 'impresora' | 'copia'
 
 const SECCIONES: { id: Seccion; nombre: string }[] = [
   { id: 'negocio', nombre: 'Datos de la cafetería' },
   { id: 'carta', nombre: 'Carta y precios' },
   { id: 'mesas', nombre: 'Mesas' },
+  { id: 'impresora', nombre: 'Impresora de tickets' },
   { id: 'copia', nombre: 'Copia de seguridad' },
 ]
 
@@ -65,6 +69,7 @@ export function Ajustes() {
       {seccion === 'negocio' && <DatosNegocio />}
       {seccion === 'carta' && <Carta />}
       {seccion === 'mesas' && <Mesas />}
+      {seccion === 'impresora' && <Impresora />}
       {seccion === 'copia' && <CopiaSeguridad />}
     </div>
   )
@@ -556,6 +561,215 @@ function Mesas() {
           </div>
         )}
       </Modal>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+
+/** Un ticket de mentira para poder probar la impresora sin cobrar nada */
+function ticketDePrueba(): Ticket {
+  const ahora = Date.now()
+  return {
+    numero: 'PRUEBA',
+    mesaId: null,
+    mesaNombre: 'Prueba',
+    clienteId: null,
+    clienteNombre: null,
+    lineas: [
+      { productoId: null, nombre: 'Café con leche', precio: 170, iva: 10, cantidad: 2 },
+      { productoId: null, nombre: 'Cruasán', precio: 160, iva: 10, cantidad: 1 },
+      { productoId: null, nombre: 'Barra pagesa', precio: 130, iva: 4, cantidad: 1 },
+    ],
+    estado: 'cobrado',
+    abiertoEn: ahora,
+    cerradoEn: ahora,
+    metodoPago: 'efectivo',
+    total: 630,
+    recibido: 1000,
+    cambio: 370,
+    facturaId: null,
+    dia: aDiaLocal(),
+    nota: '',
+  }
+}
+
+function Impresora() {
+  const ajustes = useLiveQuery(() => db.ajustes.get(1), [])
+  const entradaLogo = useRef<HTMLInputElement>(null)
+  const [errorLogo, setErrorLogo] = useState('')
+
+  if (!ajustes) return null
+
+  const subirLogo = async (archivo: File) => {
+    setErrorLogo('')
+    try {
+      await db.ajustes.update(1, { logoTicket: await prepararLogo(archivo), mostrarLogoTicket: 1 })
+    } catch (e) {
+      setErrorLogo(e instanceof Error ? e.message : 'No se ha podido usar esa imagen')
+    }
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-2">
+      <Tarjeta className="lg:col-span-2">
+        <h2 className="mb-1 text-lg font-bold text-cafe-900">Lo que sale impreso arriba</h2>
+        <p className="mb-4 max-w-3xl text-sm text-cafe-600">
+          El nombre, el NIF, la dirección y el teléfono del ticket salen de{' '}
+          <b>Ajustes → Datos de la cafetería</b>. Aquí eliges el logo y lo que va al final del papel.
+        </p>
+
+        <div className="grid gap-5 md:grid-cols-[220px_1fr]">
+          <div>
+            <div className="grid h-[130px] place-items-center rounded-xl border border-dashed border-cafe-300 bg-white p-3">
+              {ajustes.logoTicket ? (
+                <img
+                  src={ajustes.logoTicket}
+                  alt="Logo del ticket"
+                  className="max-h-[106px] max-w-full object-contain"
+                />
+              ) : (
+                <div className="text-center">
+                  <Logo tamano={54} />
+                  <div className="mt-1 text-[11px] font-semibold text-cafe-400">
+                    Corona de Reina
+                  </div>
+                </div>
+              )}
+            </div>
+            <input
+              ref={entradaLogo}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const archivo = e.target.files?.[0]
+                if (archivo) subirLogo(archivo)
+                e.target.value = ''
+              }}
+            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Boton tono="neutro" onClick={() => entradaLogo.current?.click()} className="!py-2 !text-xs">
+                {ajustes.logoTicket ? 'Cambiar logo' : 'Subir mi logo'}
+              </Boton>
+              {ajustes.logoTicket && (
+                <Boton
+                  tono="neutro"
+                  className="!py-2 !text-xs !text-anular"
+                  onClick={() => db.ajustes.update(1, { logoTicket: '' })}
+                >
+                  Quitar
+                </Boton>
+              )}
+            </div>
+            {errorLogo && <p className="mt-2 text-xs font-semibold text-anular">{errorLogo}</p>}
+          </div>
+
+          <div className="grid content-start gap-3">
+            <p className="text-sm text-cafe-600">
+              El papel térmico solo imprime en negro, así que la imagen se pasa a blanco y negro y se
+              ajusta al ancho del ticket. Si no subes ninguna, se imprime la corona de Reina, que al
+              ser un dibujo sale siempre nítida.
+            </p>
+
+            <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-cafe-100 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={ajustes.mostrarLogoTicket === 1}
+                onChange={(e) =>
+                  db.ajustes.update(1, { mostrarLogoTicket: e.target.checked ? 1 : 0 })
+                }
+                className="h-5 w-5 accent-cafe-800"
+              />
+              <span className="text-sm font-bold text-cafe-800">Sacar el logo en el ticket</span>
+            </label>
+
+            <Campo etiqueta="Frase del final del ticket">
+              <Entrada
+                value={ajustes.pieTicket}
+                onChange={(e) => db.ajustes.update(1, { pieTicket: e.target.value })}
+                placeholder="Gracias por su visita"
+              />
+            </Campo>
+
+            <div>
+              <Boton tono="principal" onClick={() => imprimirTicket(ticketDePrueba(), ajustes)}>
+                Ver e imprimir un ticket de prueba
+              </Boton>
+            </div>
+          </div>
+        </div>
+      </Tarjeta>
+
+      <Tarjeta>
+        <h2 className="mb-1 text-lg font-bold text-cafe-900">Cómo imprime</h2>
+        <p className="mb-4 text-sm text-cafe-600">
+          El ticket se manda a la impresora que tengas puesta en Windows, igual que cualquier otro
+          documento. No hace falta configurar nada raro: si la impresora imprime desde el Bloc de
+          notas, imprime desde aquí.
+        </p>
+
+        <div className="grid gap-3">
+          <Campo etiqueta="Ancho del papel">
+            <select
+              value={ajustes.anchoTicket}
+              onChange={(e) => db.ajustes.update(1, { anchoTicket: Number(e.target.value) })}
+              className={claseInput}
+            >
+              <option value={80}>80 mm (lo normal)</option>
+              <option value={58}>58 mm (impresoras pequeñas)</option>
+            </select>
+          </Campo>
+
+          <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-cafe-100 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={ajustes.imprimirAlCobrar === 1}
+              onChange={(e) => db.ajustes.update(1, { imprimirAlCobrar: e.target.checked ? 1 : 0 })}
+              className="h-5 w-5 accent-cafe-800"
+            />
+            <span className="text-sm font-bold text-cafe-800">
+              Imprimir el ticket automáticamente al cobrar
+            </span>
+          </label>
+
+          <Campo etiqueta="Serie de los tickets" ayuda="Va delante del número: T-2026-0001">
+            <Entrada
+              value={ajustes.serieTicket}
+              onChange={(e) => db.ajustes.update(1, { serieTicket: e.target.value.toUpperCase() })}
+              maxLength={6}
+            />
+          </Campo>
+        </div>
+      </Tarjeta>
+
+      <Tarjeta>
+        <h2 className="mb-1 text-lg font-bold text-cafe-900">Para que no pregunte cada vez</h2>
+        <p className="mb-4 text-sm text-cafe-600">
+          De serie, cada ticket abre el cuadro de impresión de Windows y hay que confirmar. En un bar
+          eso es un estorbo. Para que el papel salga directo:
+        </p>
+        <ol className="mb-4 list-decimal space-y-2 pl-5 text-sm text-cafe-600">
+          <li>
+            Poner la impresora de tickets como <b>impresora predeterminada</b> de Windows
+            (Configuración → Bluetooth y dispositivos → Impresoras).
+          </li>
+          <li>
+            Botón derecho en el acceso directo de la aplicación → <b>Propiedades</b>.
+          </li>
+          <li>
+            Al final del campo <b>Destino</b>, dejar un espacio y añadir:
+            <code className="mt-1 block rounded-lg bg-cafe-100 px-3 py-2 font-mono text-xs break-all">
+              --kiosk-printing
+            </code>
+          </li>
+          <li>Aceptar y volver a abrir la aplicación desde ese acceso directo.</li>
+        </ol>
+        <p className="text-sm text-cafe-500">
+          A partir de ahí el ticket sale solo, sin preguntar nada. Si algún día quieres que vuelva a
+          preguntar, se quita esa parte del acceso directo.
+        </p>
+      </Tarjeta>
     </div>
   )
 }

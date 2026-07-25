@@ -47,6 +47,8 @@ export type MetodoPago = 'efectivo' | 'tarjeta' | 'cuenta'
 
 export type Ticket = {
   id?: number
+  /** Número de factura simplificada, p. ej. 'T-2026-0001'. Se pone al cobrar */
+  numero?: string | null
   mesaId: number | null
   mesaNombre: string
   clienteId: number | null
@@ -138,6 +140,25 @@ export type Ajustes = {
   contadorFactura: number
   ejercicioFactura: number
   ivaPorDefecto: number
+
+  // --- Tickets en papel ---
+  /** Serie de las facturas simplificadas (los tickets), aparte de las facturas */
+  serieTicket: string
+  contadorTicket: number
+  ejercicioTicket: number
+  /** Ancho del papel de la impresora, en milímetros: 80 o 58 */
+  anchoTicket: number
+  /** Frase del final del ticket */
+  pieTicket: string
+  /**
+   * Logo que sale arriba del ticket, guardado como imagen dentro de los ajustes.
+   * Vacío = se imprime la corona de Reina dibujada.
+   */
+  logoTicket: string
+  /** 1 = sale el logo en el ticket, 0 = solo el nombre */
+  mostrarLogoTicket: number
+  /** 1 = al cobrar sale el ticket solo, 0 = solo si se pide */
+  imprimirAlCobrar: number
 }
 
 /**
@@ -357,6 +378,14 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   contadorFactura: 0,
   ejercicioFactura: new Date().getFullYear(),
   ivaPorDefecto: 10,
+  serieTicket: 'T',
+  contadorTicket: 0,
+  ejercicioTicket: new Date().getFullYear(),
+  anchoTicket: 80,
+  pieTicket: 'Gracias por su visita',
+  logoTicket: '',
+  mostrarLogoTicket: 1,
+  imprimirAlCobrar: 0,
 }
 
 /** Vuelca la carta de arriba en la base de datos, sustituyendo la que hubiera */
@@ -400,7 +429,16 @@ export async function inicializarDatos() {
     await db.mesas.bulkAdd(MESAS_INICIALES)
   }
 
-  if (!(await db.ajustes.get(1))) {
+  const ajustes = await db.ajustes.get(1)
+  if (!ajustes) {
     await db.ajustes.add(AJUSTES_POR_DEFECTO)
+  } else {
+    // Rellena los ajustes que se hayan añadido después de la primera instalación
+    const faltantes = Object.fromEntries(
+      Object.entries(AJUSTES_POR_DEFECTO).filter(
+        ([clave]) => ajustes[clave as keyof Ajustes] === undefined,
+      ),
+    )
+    if (Object.keys(faltantes).length > 0) await db.ajustes.update(1, faltantes)
   }
 }
