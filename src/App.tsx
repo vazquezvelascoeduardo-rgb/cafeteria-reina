@@ -6,6 +6,7 @@ import { Inicio } from './pages/Inicio'
 import { Mesas } from './pages/Mesas'
 import { Comanda } from './pages/Comanda'
 import { Caja } from './pages/Caja'
+import { Tickets } from './pages/Tickets'
 import { Clientes } from './pages/Clientes'
 import { Facturas } from './pages/Facturas'
 import { Informes } from './pages/Informes'
@@ -13,7 +14,15 @@ import { Ajustes } from './pages/Ajustes'
 import { formatearEuros } from './lib/dinero'
 import { copiaAutomaticaSiToca } from './lib/copiaAutomatica'
 
-type Vista = 'inicio' | 'mesas' | 'caja' | 'clientes' | 'facturas' | 'informes' | 'ajustes'
+type Vista =
+  | 'inicio'
+  | 'mesas'
+  | 'caja'
+  | 'tickets'
+  | 'clientes'
+  | 'facturas'
+  | 'informes'
+  | 'ajustes'
 
 const SECCIONES: { id: Vista; nombre: string; sub: string; icono: string }[] = [
   {
@@ -33,6 +42,12 @@ const SECCIONES: { id: Vista; nombre: string; sub: string; icono: string }[] = [
     nombre: 'Caja',
     sub: 'Lo cobrado y el cuadre del cajón',
     icono: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18M15.5 9.5A4 4 0 1 0 15.5 15M7 11h6M7 13.5h6',
+  },
+  {
+    id: 'tickets',
+    nombre: 'Tickets',
+    sub: 'Todo lo cobrado, ticket a ticket',
+    icono: 'M6 2h12a1 1 0 0 1 1 1v18l-2.3-1.4-2.3 1.4-2.4-1.4L9.6 21l-2.3-1.4L5 21V3a1 1 0 0 1 1-1M9 8h6M9 12h6',
   },
   {
     id: 'clientes',
@@ -217,6 +232,7 @@ export default function App() {
                 {vista === 'inicio' && <Inicio onIr={ir} />}
                 {vista === 'mesas' && <Mesas onAbrirComanda={setTicketId} />}
                 {vista === 'caja' && <Caja />}
+                {vista === 'tickets' && <Tickets />}
                 {vista === 'clientes' && (
                   <Clientes
                     onFacturar={(id) => {

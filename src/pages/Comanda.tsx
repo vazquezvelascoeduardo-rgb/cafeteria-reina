@@ -36,7 +36,13 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
 
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState('')
+  const [buscando, setBuscando] = useState(false)
   const [modal, setModal] = useState<'cobro' | 'cuenta' | 'libre' | 'mover' | null>(null)
+
+  const cerrarBusqueda = () => {
+    setBusqueda('')
+    setBuscando(false)
+  }
 
   const categoriaMostrada = categoriaActiva ?? categorias[0]?.id ?? null
 
@@ -67,29 +73,57 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
     <div className="flex h-full flex-col gap-4 lg:flex-row">
       {/* ------------------------------- Carta ------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="mb-3 flex items-center gap-2">
-          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
-            {busqueda === '' &&
-              categorias.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setCategoriaActiva(c.id!)}
-                  className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-                    c.id === categoriaMostrada
-                      ? 'bg-cafe-800 text-marfil'
-                      : 'border border-borde bg-white text-cafe-600 hover:bg-cafe-100'
-                  }`}
-                >
-                  {c.nombre}
-                </button>
-              ))}
-          </div>
-          <input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar…"
-            className={`${claseInput} w-36 shrink-0 sm:w-52`}
-          />
+        {/* Las categorías se reparten todo el ancho: se ven de un vistazo y se
+            aciertan con el dedo sin apuntar */}
+        <div className="mb-3 flex items-stretch gap-2">
+          {buscando ? (
+            <div className="flex flex-1 items-center gap-2 rounded-xl border border-oro bg-white px-4 ring-2 ring-oro/20">
+              <IconoLupa />
+              <input
+                autoFocus
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') cerrarBusqueda()
+                }}
+                placeholder="Escribe el nombre del producto…"
+                className="min-w-0 flex-1 bg-transparent py-3.5 text-base font-semibold outline-none placeholder:font-normal placeholder:text-cafe-400"
+              />
+              <button
+                onClick={cerrarBusqueda}
+                aria-label="Cerrar la búsqueda"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-xl text-cafe-400 hover:bg-cafe-100 hover:text-cafe-900"
+              >
+                ×
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                {categorias.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCategoriaActiva(c.id!)}
+                    className={`min-w-[112px] flex-1 rounded-xl px-2.5 py-3.5 text-[15px] leading-tight font-bold transition-colors ${
+                      c.id === categoriaMostrada
+                        ? 'bg-cafe-800 text-marfil'
+                        : 'border border-borde bg-white text-cafe-600 hover:border-oro-medio hover:bg-cafe-100'
+                    }`}
+                  >
+                    {c.nombre}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={() => setBuscando(true)}
+                aria-label="Buscar un producto"
+                title="Buscar un producto"
+                className="grid w-12 shrink-0 place-items-center rounded-xl border border-borde bg-white text-cafe-600 transition-colors hover:border-oro-medio hover:bg-cafe-100"
+              >
+                <IconoLupa />
+              </button>
+            </>
+          )}
         </div>
 
         <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-y-auto pb-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
@@ -277,6 +311,24 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
         }}
       />
     </div>
+  )
+}
+
+function IconoLupa() {
+  return (
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      className="shrink-0"
+    >
+      <circle cx="11" cy="11" r="7" />
+      <path d="M20 20l-3.5-3.5" />
+    </svg>
   )
 }
 

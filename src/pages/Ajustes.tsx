@@ -80,6 +80,7 @@ export function Ajustes() {
 function DatosNegocio() {
   const ajustes = useLiveQuery(() => db.ajustes.get(1), [])
   const [guardado, setGuardado] = useState(false)
+  const anyo = new Date().getFullYear()
 
   if (!ajustes) return null
 
@@ -146,15 +147,21 @@ function DatosNegocio() {
               maxLength={6}
             />
           </Campo>
-          <div className="rounded-xl bg-cafe-100 px-4 py-3">
-            <div className="text-xs text-cafe-500">La siguiente factura será</div>
-            <div className="text-2xl font-bold text-cafe-900">
-              {ajustes.serieFactura}-{new Date().getFullYear()}-
-              {String(
-                (ajustes.ejercicioFactura === new Date().getFullYear() ? ajustes.contadorFactura : 0) + 1,
-              ).padStart(4, '0')}
-            </div>
-          </div>
+
+          <SiguienteNumero
+            etiqueta="Empezar a numerar por"
+            ayuda="Para seguir donde lo dejaste con la libreta o el programa anterior"
+            serie={ajustes.serieFactura}
+            ejercicio={anyo}
+            siguiente={(ajustes.ejercicioFactura === anyo ? ajustes.contadorFactura : 0) + 1}
+            estaLibre={async (numero) => {
+              const emitidas = await db.facturas.toArray()
+              return !emitidas.some((f) => f.ejercicio === anyo && f.contador >= numero)
+            }}
+            onGuardar={(numero) =>
+              db.ajustes.update(1, { contadorFactura: numero - 1, ejercicioFactura: anyo })
+            }
+          />
         </div>
       </Tarjeta>
     </div>
@@ -567,6 +574,93 @@ function Mesas() {
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Deja elegir por qué número empieza a contar la numeración.
+ *
+ * Sirve para seguir donde lo dejó la libreta o el programa anterior. No permite
+ * retroceder a un número ya usado: repetir el número de una factura o de un
+ * ticket es un problema serio con Hacienda.
+ */
+function SiguienteNumero({
+  etiqueta,
+  ayuda,
+  serie,
+  ejercicio,
+  siguiente,
+  estaLibre,
+  onGuardar,
+}: {
+  etiqueta: string
+  ayuda: string
+  serie: string
+  ejercicio: number
+  siguiente: number
+  estaLibre: (numero: number) => Promise<boolean>
+  onGuardar: (numero: number) => Promise<unknown>
+}) {
+  const [texto, setTexto] = useState(String(siguiente))
+  const [visto, setVisto] = useState(siguiente)
+  const [aviso, setAviso] = useState('')
+
+  // Si el número cambia por su cuenta (al cobrar o facturar), se refresca
+  if (siguiente !== visto) {
+    setVisto(siguiente)
+    setTexto(String(siguiente))
+    setAviso('')
+  }
+
+  const valor = Number(texto)
+  const valido = Number.isInteger(valor) && valor >= 1 && valor <= 999999
+  const cambiado = valido && valor !== siguiente
+
+  const guardar = async () => {
+    if (!cambiado) return
+    if (!(await estaLibre(valor))) {
+      setAviso(`El ${formatoNumero(serie, ejercicio, valor)} ya está usado. Elige uno más alto.`)
+      return
+    }
+    await onGuardar(valor)
+    setAviso('')
+  }
+
+  return (
+    <div className="rounded-xl bg-cafe-100 p-4">
+      <Campo etiqueta={etiqueta} ayuda={ayuda}>
+        <div className="flex gap-2">
+          <Entrada
+            type="number"
+            min={1}
+            value={texto}
+            onChange={(e) => {
+              setTexto(e.target.value)
+              setAviso('')
+            }}
+            className="!w-32 !text-xl !font-bold"
+          />
+          <Boton tono="principal" disabled={!cambiado} onClick={guardar}>
+            Cambiar
+          </Boton>
+        </div>
+      </Campo>
+
+      <div className="mt-3 text-sm">
+        <span className="text-cafe-500">
+          {cambiado ? 'Quedaría como' : 'La siguiente será'}:{' '}
+        </span>
+        <b className="text-cafe-900">
+          {formatoNumero(serie, ejercicio, valido ? valor : siguiente)}
+        </b>
+      </div>
+
+      {aviso && <p className="mt-2 text-sm font-bold text-anular">{aviso}</p>}
+    </div>
+  )
+}
+
+function formatoNumero(serie: string, ejercicio: number, numero: number): string {
+  return `${serie}-${ejercicio}-${String(numero).padStart(4, '0')}`
+}
+
 /** Un ticket de mentira para poder probar la impresora sin cobrar nada */
 function ticketDePrueba(): Ticket {
   const ahora = Date.now()
@@ -598,6 +692,7 @@ function Impresora() {
   const ajustes = useLiveQuery(() => db.ajustes.get(1), [])
   const entradaLogo = useRef<HTMLInputElement>(null)
   const [errorLogo, setErrorLogo] = useState('')
+  const anyo = new Date().getFullYear()
 
   if (!ajustes) return null
 
@@ -740,6 +835,28 @@ function Impresora() {
               maxLength={6}
             />
           </Campo>
+
+          <SiguienteNumero
+            etiqueta="Empezar a numerar por"
+            ayuda="Para seguir donde lo dejó la máquina anterior"
+            serie={ajustes.serieTicket}
+            ejercicio={anyo}
+            siguiente={(ajustes.ejercicioTicket === anyo ? ajustes.contadorTicket : 0) + 1}
+            estaLibre={async (numero) => {
+              const buscado = formatoNumero(ajustes.serieTicket, anyo, numero)
+              const cobrados = await db.tickets.toArray()
+              // Si ya existe ese número o cualquiera por encima, no se puede volver atrás
+              return !cobrados.some(
+                (t) =>
+                  t.numero != null &&
+                  t.numero.startsWith(`${ajustes.serieTicket}-${anyo}-`) &&
+                  t.numero >= buscado,
+              )
+            }}
+            onGuardar={(numero) =>
+              db.ajustes.update(1, { contadorTicket: numero - 1, ejercicioTicket: anyo })
+            }
+          />
         </div>
       </Tarjeta>
 
