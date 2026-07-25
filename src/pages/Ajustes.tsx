@@ -648,11 +648,21 @@ function CajonPortamonedas({ ajustes }: { ajustes: AjustesTipo }) {
         </p>
       ) : (
         <>
-          <p className="mb-4 text-sm text-cafe-600">
+          <p className="mb-3 text-sm text-cafe-600">
             El cajón no se enchufa al ordenador, sino a la impresora de tickets con un cable de
-            teléfono. Elige aquí la impresora y la aplicación le mandará la orden de abrirlo cuando
-            cobres en efectivo.
+            teléfono. Por eso, en la lista que sale al pulsar el botón <b>no busques el cajón</b>:
+            hay que elegir <b>la impresora</b>. Y hay que hacerlo en el propio ordenador de la
+            cafetería, que es donde está enchufada.
           </p>
+
+          <div className="mb-4 rounded-xl border border-[#F0DCA6] bg-[#FFF8E6] px-4 py-3 text-sm text-[#7A5B12]">
+            <b>Prueba esto primero, que es más sencillo:</b> casi todas las impresoras de tickets
+            abren el cajón ellas solas al imprimir. En Windows, <i>Configuración → Impresoras</i> →
+            tu impresora → <i>Preferencias de impresión</i>, y busca una opción tipo{' '}
+            <i>Cash drawer</i> o <i>Abrir cajón al imprimir</i>. Si la activas, con marcar aquí
+            arriba «imprimir el ticket al cobrar» ya se abre solo, y no hace falta configurar nada
+            más en esta pantalla.
+          </div>
 
           <label className="mb-3 flex cursor-pointer items-center gap-3 rounded-xl bg-cafe-100 px-4 py-3">
             <input
