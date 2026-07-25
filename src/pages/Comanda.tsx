@@ -320,87 +320,101 @@ function ModalCobro({
     onCerrar()
   }
 
+  // Dos columnas: a la izquierda el dinero, a la derecha el teclado.
+  // Así entra entero en la pantalla y no hay que deslizar para cobrar.
   return (
-    <Modal abierto={abierto} onCerrar={cerrar} titulo="Cobrar" ancho="max-w-md">
-      <div className="mb-4 rounded-2xl bg-cafe-800 px-5 py-4 text-marfil">
-        <div className="text-[11px] font-extrabold tracking-widest text-[#D8BE93] uppercase">
-          Importe a cobrar
-        </div>
-        <Importe className="text-5xl">{formatearEuros(total)}</Importe>
-      </div>
-
-      <Boton
-        tono="principal"
-        className="mb-4 w-full !py-4 !text-lg"
-        onClick={() => {
-          setTexto('')
-          onCobrar('tarjeta', null)
-        }}
-      >
-        Cobrar con tarjeta
-      </Boton>
-
-      <div className="rounded-2xl border border-borde bg-white p-4">
-        <div className="mb-3 text-sm font-bold text-cafe-600">Efectivo: ¿con cuánto paga?</div>
-
-        <div className="mb-3 grid grid-cols-2 gap-2.5">
-          <div className="rounded-xl border border-cafe-200 bg-lino px-3 py-2">
-            <div className="text-[10.5px] font-extrabold tracking-widest text-cafe-500 uppercase">
-              Entrega
+    <Modal abierto={abierto} onCerrar={cerrar} titulo="Cobrar" ancho="max-w-4xl">
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* ----------------------------- El dinero ----------------------------- */}
+        <div className="flex flex-col gap-3">
+          <div className="rounded-2xl bg-cafe-800 px-5 py-4 text-marfil">
+            <div className="text-[11px] font-extrabold tracking-widest text-[#D8BE93] uppercase">
+              Importe a cobrar
             </div>
-            <div className="text-[27px] leading-tight font-extrabold tabular-nums">{texto || '0'}</div>
+            <Importe className="text-5xl">{formatearEuros(total)}</Importe>
           </div>
-          <div
-            className={`rounded-xl px-3 py-2 ${
-              cambio === null
-                ? 'border border-cafe-200 bg-lino'
-                : suficiente
-                  ? 'bg-cobro text-white'
-                  : 'bg-[#FFF7F5] text-anular'
-            }`}
-          >
-            <div className="text-[10.5px] font-extrabold tracking-widest uppercase opacity-75">
-              {cambio === null ? 'Cambio' : suficiente ? 'Cambio' : 'Faltan'}
-            </div>
-            <div className="text-[27px] leading-tight font-extrabold tabular-nums">
-              {cambio === null ? '—' : formatearEuros(Math.abs(cambio))}
-            </div>
-          </div>
-        </div>
 
-        {suficiente && cambio! > 0 && (
-          <p className="mb-3 text-xs font-semibold text-cafe-500">
-            {desglosarCambio(cambio!)
-              .map((d) => `${d.unidades} × ${formatearEuros(d.valor)}`)
-              .join('  ·  ')}
-          </p>
-        )}
-
-        <div className="mb-2.5 flex flex-wrap gap-1.5">
-          {sugerenciasPago(total).map((s) => (
-            <button
-              key={s}
-              onClick={() => setTexto((s / 100).toFixed(2).replace('.', ','))}
-              className="rounded-xl border border-borde-fuerte bg-lino px-3 py-2 text-sm font-bold text-cafe-600 hover:bg-cafe-100"
+          <div className="grid grid-cols-2 gap-2.5">
+            <div className="rounded-xl border border-cafe-200 bg-white px-3 py-2.5">
+              <div className="text-[10.5px] font-extrabold tracking-widest text-cafe-500 uppercase">
+                Paga con
+              </div>
+              <div className="text-[28px] leading-tight font-extrabold tabular-nums">
+                {texto || '0'}
+              </div>
+            </div>
+            <div
+              className={`rounded-xl px-3 py-2.5 ${
+                cambio === null
+                  ? 'border border-cafe-200 bg-white'
+                  : suficiente
+                    ? 'bg-cobro text-white'
+                    : 'bg-[#FFF7F5] text-anular'
+              }`}
             >
-              {formatearEuros(s)}
-            </button>
-          ))}
+              <div className="text-[10.5px] font-extrabold tracking-widest uppercase opacity-75">
+                {cambio !== null && !suficiente ? 'Faltan' : 'Cambio'}
+              </div>
+              <div className="text-[28px] leading-tight font-extrabold tabular-nums">
+                {cambio === null ? '—' : formatearEuros(Math.abs(cambio))}
+              </div>
+            </div>
+          </div>
+
+          <div className="min-h-[34px] rounded-xl bg-cafe-100 px-3 py-2 text-xs leading-relaxed font-semibold text-cafe-600">
+            {suficiente && cambio! > 0 ? (
+              <>
+                <span className="text-cafe-500">Devolver: </span>
+                {desglosarCambio(cambio!)
+                  .map((d) => `${d.unidades} × ${formatearEuros(d.valor)}`)
+                  .join('  ·  ')}
+              </>
+            ) : suficiente ? (
+              'Importe justo, no hay que devolver nada.'
+            ) : (
+              'Escribe con cuánto paga y aquí saldrá el cambio en monedas.'
+            )}
+          </div>
+
+          <Boton
+            tono="exito"
+            disabled={!suficiente}
+            className="!py-4 !text-lg"
+            onClick={() => {
+              setTexto('')
+              onCobrar('efectivo', recibido)
+            }}
+          >
+            Cobrado en efectivo
+          </Boton>
+
+          <Boton
+            tono="principal"
+            className="!py-4 !text-lg"
+            onClick={() => {
+              setTexto('')
+              onCobrar('tarjeta', null)
+            }}
+          >
+            Cobrar con tarjeta
+          </Boton>
         </div>
 
-        <TecladoNumerico valor={texto} onCambio={setTexto} className="mb-3" />
-
-        <Boton
-          tono="exito"
-          disabled={!suficiente}
-          className="w-full !py-4 !text-lg"
-          onClick={() => {
-            setTexto('')
-            onCobrar('efectivo', recibido)
-          }}
-        >
-          Cobrado en efectivo
-        </Boton>
+        {/* ----------------------------- El teclado ----------------------------- */}
+        <div className="flex flex-col gap-2.5">
+          <div className="grid grid-cols-4 gap-1.5">
+            {sugerenciasPago(total).map((s) => (
+              <button
+                key={s}
+                onClick={() => setTexto((s / 100).toFixed(2).replace('.', ','))}
+                className="rounded-xl border border-borde-fuerte bg-lino py-2.5 text-sm font-bold text-cafe-600 hover:bg-cafe-100"
+              >
+                {formatearEuros(s)}
+              </button>
+            ))}
+          </div>
+          <TecladoNumerico valor={texto} onCambio={setTexto} className="flex-1" />
+        </div>
       </div>
     </Modal>
   )

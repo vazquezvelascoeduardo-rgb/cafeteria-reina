@@ -178,12 +178,32 @@ export async function generarHojas(rango?: Rango): Promise<Hoja[]> {
   ]
 }
 
-/** Descarga un archivo desde el navegador */
-export function descargar(nombre: string, contenido: string, tipo = 'text/csv;charset=utf-8') {
-  const url = URL.createObjectURL(new Blob([contenido], { type: tipo }))
+/**
+ * Descarga un archivo desde el navegador.
+ *
+ * El enlace tiene que estar en la página y la dirección temporal no se puede
+ * soltar en el acto: si se suelta antes de que el navegador haya empezado a
+ * guardar, la descarga se queda en nada.
+ */
+export function descargarBlob(nombre: string, blob: Blob) {
+  const url = URL.createObjectURL(blob)
   const enlace = document.createElement('a')
   enlace.href = url
   enlace.download = nombre
+  enlace.style.display = 'none'
+  document.body.appendChild(enlace)
   enlace.click()
-  URL.revokeObjectURL(url)
+  setTimeout(() => {
+    enlace.remove()
+    URL.revokeObjectURL(url)
+  }, 30000)
+}
+
+export function descargar(nombre: string, contenido: string, tipo = 'text/csv;charset=utf-8') {
+  descargarBlob(nombre, new Blob([contenido], { type: tipo }))
+}
+
+/** Cuántas filas de datos tiene una hoja, sin contar la de los títulos */
+export function filasDeLaHoja(hoja: Hoja): number {
+  return hoja.contenido.trim().split('\r\n').length - 1
 }

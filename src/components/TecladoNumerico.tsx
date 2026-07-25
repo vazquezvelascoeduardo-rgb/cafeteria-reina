@@ -38,12 +38,12 @@ export function TecladoNumerico({
   const teclas = ['1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '0', 'borrar']
 
   return (
-    <div className={`grid grid-cols-3 gap-2 ${className}`}>
+    <div className={`grid auto-rows-fr grid-cols-3 gap-2 ${className}`}>
       {teclas.map((t) => (
         <button
           key={t}
           onClick={() => pulsar(t)}
-          className="h-14 rounded-xl border border-borde bg-white text-xl font-extrabold text-cafe-900 transition-all hover:bg-cafe-100 active:scale-[.96]"
+          className="min-h-14 rounded-xl border border-borde bg-white text-xl font-extrabold text-cafe-900 transition-all hover:bg-cafe-100 active:scale-[.96]"
         >
           {t === 'borrar' ? '⌫' : t}
         </button>

@@ -4,7 +4,14 @@ import { db, type Categoria, type DatosEmisor, type Mesa, type Producto } from '
 import { Boton, Campo, Entrada, Etiqueta, Modal, Tarjeta, Vacio, claseInput } from '../components/ui'
 import { eurosACentimos, formatearEuros, formatearNumero } from '../lib/dinero'
 import { exportarCopia, importarCopia } from '../lib/acciones'
-import { descargar, generarHojas } from '../lib/exportar'
+import {
+  descargar,
+  descargarBlob,
+  filasDeLaHoja,
+  generarHojas,
+  type Hoja,
+} from '../lib/exportar'
+import { crearZip } from '../lib/zip'
 import {
   anadirCarpeta,
   copiarAhora,
@@ -609,6 +616,17 @@ function CopiaSeguridad() {
   const [desde, setDesde] = useState(() => rangoDeMes(aMesLocal()).desde)
   const [hasta, setHasta] = useState(() => aDiaLocal())
 
+  const rango = rangoDelPeriodo(periodo, desde, hasta)
+  const fechasAlReves = !!rango && rango.desde > rango.hasta
+  const sufijo = rango && !fechasAlReves ? `-${rango.desde}_${rango.hasta}` : ''
+
+  // Se recalcula solo cuando cambian el periodo o los datos del negocio
+  const hojas = useLiveQuery(
+    async () => (fechasAlReves ? [] : generarHojas(rango)),
+    [rango?.desde, rango?.hasta, fechasAlReves],
+    [],
+  )
+
   const soportado = hayApiDeCarpetas()
 
   const refrescarEstado = async () => {
@@ -665,23 +683,19 @@ function CopiaSeguridad() {
     setMensaje('Copia descargada a la carpeta de Descargas.')
   }
 
-  const descargarExcel = async () => {
-    const rango = rangoDelPeriodo(periodo, desde, hasta)
-    if (rango && rango.desde > rango.hasta) {
-      setMensaje('La fecha de inicio es posterior a la de fin.')
-      return
-    }
+  const descargarUnaHoja = (hoja: Hoja) => {
+    descargar(hoja.nombre.replace('.csv', `${sufijo}.csv`), hoja.contenido)
+    setMensaje(`Descargado "${hoja.nombre.replace('.csv', `${sufijo}.csv`)}" a la carpeta de Descargas.`)
+  }
 
-    const hojas = await generarHojas(rango)
-    const sufijo = rango ? `-${rango.desde}_${rango.hasta}` : ''
-    for (const hoja of hojas) {
-      descargar(hoja.nombre.replace('.csv', `${sufijo}.csv`), hoja.contenido)
-    }
-    setMensaje(
-      rango
-        ? `Descargados ${hojas.length} archivos con lo de ${formatearDia(rango.desde)} a ${formatearDia(rango.hasta)}.`
-        : `Descargados ${hojas.length} archivos con todo el histórico.`,
+  const descargarTodo = () => {
+    if (hojas.length === 0) return
+    const nombre = `excel-cafeteria${sufijo || '-todo'}.zip`
+    descargarBlob(
+      nombre,
+      crearZip(hojas.map((h) => ({ nombre: h.nombre, contenido: h.contenido }))),
     )
+    setMensaje(`Descargado "${nombre}" con las ${hojas.length} hojas dentro.`)
   }
 
   const restaurar = async (archivo: File) => {
@@ -789,47 +803,93 @@ function CopiaSeguridad() {
         )}
       </Tarjeta>
 
-      <Tarjeta>
-        <h2 className="mb-1 text-lg font-bold text-cafe-900">Descargar a mano</h2>
-        <p className="mb-4 text-sm text-cafe-600">
-          La <b>copia de seguridad</b> es el archivo que sirve para recuperarlo todo, y siempre lleva
-          el histórico entero. Las <b>hojas de Excel</b> son para mirar los números o dárselos a la
-          gestoría, y de esas puedes elegir el periodo que quieras.
+      <Tarjeta className="lg:col-span-2">
+        <h2 className="mb-1 text-lg font-bold text-cafe-900">Descargar a Excel</h2>
+        <p className="mb-4 max-w-3xl text-sm text-cafe-600">
+          Elige el periodo y verás exactamente qué hojas salen y cuántas líneas lleva cada una.
+          Puedes bajarlas una a una, o todas juntas en un único archivo comprimido.
         </p>
 
-        <Campo etiqueta="Periodo de las hojas de Excel" className="mb-3">
-          <select
-            value={periodo}
-            onChange={(e) => setPeriodo(e.target.value as OpcionPeriodo)}
-            className={claseInput}
-          >
-            {OPCIONES_PERIODO.map((o) => (
-              <option key={o.id} value={o.id}>
-                {o.nombre}
-              </option>
-            ))}
-          </select>
-        </Campo>
-
-        {periodo === 'personalizado' && (
-          <div className="mb-3 grid grid-cols-2 gap-3">
-            <Campo etiqueta="Desde">
-              <Entrada type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
-            </Campo>
-            <Campo etiqueta="Hasta">
-              <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
-            </Campo>
-          </div>
-        )}
-
-        <div className="flex flex-wrap gap-2">
-          <Boton tono="neutro" onClick={descargarExcel}>
-            Hojas de Excel
-          </Boton>
-          <Boton tono="principal" onClick={descargarJson}>
-            Copia de seguridad
-          </Boton>
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <Campo etiqueta="Periodo">
+            <select
+              value={periodo}
+              onChange={(e) => setPeriodo(e.target.value as OpcionPeriodo)}
+              className={claseInput}
+            >
+              {OPCIONES_PERIODO.map((o) => (
+                <option key={o.id} value={o.id}>
+                  {o.nombre}
+                </option>
+              ))}
+            </select>
+          </Campo>
+          {periodo === 'personalizado' && (
+            <>
+              <Campo etiqueta="Desde">
+                <Entrada type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+              </Campo>
+              <Campo etiqueta="Hasta">
+                <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+              </Campo>
+            </>
+          )}
         </div>
+
+        {fechasAlReves ? (
+          <p className="rounded-xl bg-[#FFF7F5] px-4 py-3 text-sm font-semibold text-anular">
+            La fecha de inicio es posterior a la de fin.
+          </p>
+        ) : (
+          <>
+            <p className="mb-2 text-sm font-semibold text-cafe-500">
+              {rango
+                ? `Del ${formatearDia(rango.desde)} al ${formatearDia(rango.hasta)}`
+                : 'Todo el histórico'}
+            </p>
+
+            <ul className="mb-4 divide-y divide-[#F4EBDD] overflow-hidden rounded-xl border border-borde bg-white">
+              {hojas.map((hoja) => {
+                const filas = filasDeLaHoja(hoja)
+                return (
+                  <li key={hoja.nombre} className="flex items-center gap-3 px-4 py-2.5">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-bold">
+                        {hoja.nombre.replace('.csv', '')}
+                      </div>
+                      <div className="text-xs font-semibold text-cafe-500">
+                        {filas === 0
+                          ? 'sin datos en este periodo'
+                          : `${filas} ${filas === 1 ? 'línea' : 'líneas'}`}
+                      </div>
+                    </div>
+                    <Boton
+                      tono="neutro"
+                      disabled={filas === 0}
+                      onClick={() => descargarUnaHoja(hoja)}
+                      className="!py-2 !text-xs"
+                    >
+                      Descargar
+                    </Boton>
+                  </li>
+                )
+              })}
+            </ul>
+
+            <div className="flex flex-wrap gap-2">
+              <Boton
+                tono="principal"
+                onClick={descargarTodo}
+                disabled={hojas.every((h) => filasDeLaHoja(h) === 0)}
+              >
+                Descargar las {hojas.length} hojas en un ZIP
+              </Boton>
+              <Boton tono="neutro" onClick={descargarJson}>
+                Copia de seguridad (para restaurar)
+              </Boton>
+            </div>
+          </>
+        )}
       </Tarjeta>
 
       <Tarjeta>
