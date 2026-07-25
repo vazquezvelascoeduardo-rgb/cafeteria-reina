@@ -79,6 +79,54 @@ export function ultimosDias(n: number, hasta: Date = new Date()): string[] {
   return dias
 }
 
+/** Date -> 'YYYY-MM' */
+export function aMesLocal(fecha: Date = new Date()): string {
+  return aDiaLocal(fecha).slice(0, 7)
+}
+
+/** Primer y último día de un mes: '2026-07' -> 01/07 a 31/07 */
+export function rangoDeMes(mes: string): { desde: string; hasta: string } {
+  const [y, m] = mes.split('-').map(Number)
+  return { desde: aDiaLocal(new Date(y, m - 1, 1)), hasta: aDiaLocal(new Date(y, m, 0)) }
+}
+
+/** '2026-07' -> '2026-06' */
+export function mesAnterior(mes: string): string {
+  const [y, m] = mes.split('-').map(Number)
+  return aMesLocal(new Date(y, m - 2, 1))
+}
+
+/** '2026-07' -> '2026-08' */
+export function mesSiguiente(mes: string): string {
+  const [y, m] = mes.split('-').map(Number)
+  return aMesLocal(new Date(y, m, 1))
+}
+
+export function rangoDeAnyo(anyo: number): { desde: string; hasta: string } {
+  return { desde: `${anyo}-01-01`, hasta: `${anyo}-12-31` }
+}
+
+/**
+ * Casillas de un calendario mensual empezando en lunes.
+ * Los null son los huecos del principio y del final.
+ */
+export function rejillaDelMes(mes: string): (string | null)[] {
+  const [y, m] = mes.split('-').map(Number)
+  const primero = new Date(y, m - 1, 1)
+  const diasDelMes = new Date(y, m, 0).getDate()
+
+  // getDay() da 0 para domingo; queremos que la semana empiece en lunes
+  const huecoInicial = (primero.getDay() + 6) % 7
+
+  const casillas: (string | null)[] = Array(huecoInicial).fill(null)
+  for (let d = 1; d <= diasDelMes; d++) {
+    casillas.push(aDiaLocal(new Date(y, m - 1, d)))
+  }
+  while (casillas.length % 7 !== 0) casillas.push(null)
+
+  return casillas
+}
+
 /** Etiqueta corta para un día: 'lun 21' */
 export function etiquetaDiaCorta(dia: string): string {
   const [y, m, d] = dia.split('-').map(Number)

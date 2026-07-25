@@ -136,10 +136,18 @@ function hojaMasVendidos(tickets: Ticket[]): Hoja {
   }
 }
 
-export async function generarHojas(): Promise<Hoja[]> {
+/** Periodo de fechas a exportar. Sin rango, se exporta todo el histórico */
+export type Rango = { desde: string; hasta: string }
+
+export async function generarHojas(rango?: Rango): Promise<Hoja[]> {
   const todos = await db.tickets.toArray()
-  const tickets = todos.filter((t) => t.estado !== 'abierto')
-  const facturas = await db.facturas.toArray()
+  const tickets = todos
+    .filter((t) => t.estado !== 'abierto')
+    .filter((t) => !rango || (t.dia >= rango.desde && t.dia <= rango.hasta))
+
+  const facturas = (await db.facturas.toArray()).filter(
+    (f) => !rango || (f.fecha >= rango.desde && f.fecha <= rango.hasta),
+  )
 
   const hojaFacturas: Hoja = {
     nombre: 'facturas-emitidas.csv',

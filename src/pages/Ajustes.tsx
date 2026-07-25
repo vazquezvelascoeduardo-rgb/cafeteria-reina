@@ -16,13 +16,24 @@ import { eurosACentimos, formatearEuros, formatearNumero } from '../lib/dinero'
 import { exportarCopia, importarCopia } from '../lib/acciones'
 import { descargar, generarHojas } from '../lib/exportar'
 import {
+  anadirCarpeta,
   copiarAhora,
-  elegirCarpeta,
-  estadoCopia,
   hayApiDeCarpetas,
-  olvidarCarpeta,
+  listarCarpetas,
+  quitarCarpeta,
+  ultimaCopia,
+  type CarpetaCopia,
 } from '../lib/copiaAutomatica'
-import { aDiaLocal, formatearDia } from '../lib/fechas'
+import {
+  aDiaLocal,
+  aMesLocal,
+  formatearDia,
+  mesAnterior,
+  rangoDeAnyo,
+  rangoDeMes,
+  trimestreAnterior,
+  trimestreDe,
+} from '../lib/fechas'
 
 type Seccion = 'negocio' | 'carta' | 'mesas' | 'copia'
 
@@ -540,31 +551,77 @@ function Mesas() {
 
 // ---------------------------------------------------------------------------
 
+type OpcionPeriodo =
+  | 'todo'
+  | 'mes'
+  | 'mes-pasado'
+  | 'trimestre'
+  | 'trimestre-pasado'
+  | 'anyo'
+  | 'personalizado'
+
+const OPCIONES_PERIODO: { id: OpcionPeriodo; nombre: string }[] = [
+  { id: 'todo', nombre: 'Todo el histórico' },
+  { id: 'mes', nombre: 'Este mes' },
+  { id: 'mes-pasado', nombre: 'El mes pasado' },
+  { id: 'trimestre', nombre: 'Este trimestre' },
+  { id: 'trimestre-pasado', nombre: 'El trimestre pasado' },
+  { id: 'anyo', nombre: 'Este año' },
+  { id: 'personalizado', nombre: 'Entre dos fechas concretas…' },
+]
+
+/** Traduce la opción elegida a un rango de fechas concreto */
+function rangoDelPeriodo(
+  opcion: OpcionPeriodo,
+  desde: string,
+  hasta: string,
+): { desde: string; hasta: string } | undefined {
+  switch (opcion) {
+    case 'todo':
+      return undefined
+    case 'mes':
+      return rangoDeMes(aMesLocal())
+    case 'mes-pasado':
+      return rangoDeMes(mesAnterior(aMesLocal()))
+    case 'trimestre':
+      return trimestreDe()
+    case 'trimestre-pasado':
+      return trimestreAnterior()
+    case 'anyo':
+      return rangoDeAnyo(new Date().getFullYear())
+    case 'personalizado':
+      return { desde, hasta }
+  }
+}
+
 function CopiaSeguridad() {
   const entrada = useRef<HTMLInputElement>(null)
   const [mensaje, setMensaje] = useState('')
-  const [carpeta, setCarpeta] = useState<string | null>(null)
-  const [ultimaCopia, setUltimaCopia] = useState<string | null>(null)
+  const [carpetas, setCarpetas] = useState<CarpetaCopia[]>([])
+  const [diaUltimaCopia, setDiaUltimaCopia] = useState<string | null>(null)
   const [copiando, setCopiando] = useState(false)
+
+  const [periodo, setPeriodo] = useState<OpcionPeriodo>('todo')
+  const [desde, setDesde] = useState(() => rangoDeMes(aMesLocal()).desde)
+  const [hasta, setHasta] = useState(() => aDiaLocal())
 
   const soportado = hayApiDeCarpetas()
 
   const refrescarEstado = async () => {
-    const estado = await estadoCopia()
-    setCarpeta(estado.carpeta)
-    setUltimaCopia(estado.ultimaCopia)
+    setCarpetas(await listarCarpetas())
+    setDiaUltimaCopia(await ultimaCopia())
   }
 
   useEffect(() => {
     refrescarEstado()
   }, [])
 
-  const elegir = async () => {
+  const anadir = async () => {
     try {
-      const nombre = await elegirCarpeta()
+      const nombre = await anadirCarpeta()
       if (!nombre) return
       await refrescarEstado()
-      setMensaje(`Carpeta elegida: ${nombre}. Haciendo la primera copia…`)
+      setMensaje(`Carpeta añadida: ${nombre}. Guardando la primera copia…`)
       await copiar()
     } catch (e) {
       // Si cierra el diálogo sin elegir nada, no es un error que haya que contar
@@ -576,9 +633,17 @@ function CopiaSeguridad() {
   const copiar = async () => {
     setCopiando(true)
     try {
-      const { carpeta: nombre, archivos } = await copiarAhora()
+      const { guardadas, fallidas, archivos } = await copiarAhora()
       await refrescarEstado()
-      setMensaje(`Copia guardada en "${nombre}": ${archivos} archivos actualizados.`)
+
+      const partes: string[] = []
+      if (guardadas.length > 0) {
+        partes.push(`${archivos} archivos guardados en: ${guardadas.join(', ')}.`)
+      }
+      for (const f of fallidas) {
+        partes.push(`No se pudo guardar en "${f.carpeta}" (${f.motivo}).`)
+      }
+      setMensaje(partes.join(' '))
     } catch (e) {
       setMensaje(e instanceof Error ? `Error: ${e.message}` : 'No se ha podido guardar la copia')
     } finally {
@@ -597,9 +662,22 @@ function CopiaSeguridad() {
   }
 
   const descargarExcel = async () => {
-    const hojas = await generarHojas()
-    for (const hoja of hojas) descargar(hoja.nombre, hoja.contenido)
-    setMensaje(`Descargados ${hojas.length} archivos de Excel a la carpeta de Descargas.`)
+    const rango = rangoDelPeriodo(periodo, desde, hasta)
+    if (rango && rango.desde > rango.hasta) {
+      setMensaje('La fecha de inicio es posterior a la de fin.')
+      return
+    }
+
+    const hojas = await generarHojas(rango)
+    const sufijo = rango ? `-${rango.desde}_${rango.hasta}` : ''
+    for (const hoja of hojas) {
+      descargar(hoja.nombre.replace('.csv', `${sufijo}.csv`), hoja.contenido)
+    }
+    setMensaje(
+      rango
+        ? `Descargados ${hojas.length} archivos con lo de ${formatearDia(rango.desde)} a ${formatearDia(rango.hasta)}.`
+        : `Descargados ${hojas.length} archivos con todo el histórico.`,
+    )
   }
 
   const restaurar = async (archivo: File) => {
@@ -618,14 +696,15 @@ function CopiaSeguridad() {
     }
   }
 
-  const copiaDeHoy = ultimaCopia === aDiaLocal()
+  const copiaDeHoy = diaUltimaCopia === aDiaLocal()
+  const sinPermiso = carpetas.filter((c) => !c.permisoConcedido)
 
   return (
     <div className="grid gap-6 lg:grid-cols-2">
       <Tarjeta className="lg:col-span-2">
         <div className="mb-1 flex flex-wrap items-center gap-3">
           <h2 className="text-lg font-bold text-cafe-900">Copia automática diaria</h2>
-          {carpeta &&
+          {carpetas.length > 0 &&
             (copiaDeHoy ? (
               <Etiqueta tono="verde">Copiado hoy</Etiqueta>
             ) : (
@@ -638,47 +717,69 @@ function CopiaSeguridad() {
             Este navegador no permite guardar copias solo. Abre la aplicación con <b>Chrome</b> o{' '}
             <b>Edge</b> para activarlo, o usa la descarga manual de aquí abajo.
           </p>
-        ) : carpeta === null ? (
-          <>
-            <p className="mb-4 max-w-3xl text-sm text-cafe-600">
-              Elige una carpeta y la aplicación guardará ahí sola, una vez al día, una copia completa
-              de todo y las hojas de Excel con las ventas.
-              <br />
-              <b>Lo mejor es elegir una carpeta dentro de OneDrive</b> (por ejemplo{' '}
-              <i>OneDrive → Documentos → Cafetería</i>): así Windows sube la copia a la nube por su
-              cuenta y, aunque el ordenador se estropee, los datos siguen estando.
-            </p>
-            <Boton tono="principal" onClick={elegir}>
-              Elegir carpeta para las copias
-            </Boton>
-          </>
         ) : (
           <>
-            <p className="mb-4 text-sm text-cafe-600">
-              Guardando en la carpeta <b>{carpeta}</b>.{' '}
-              {ultimaCopia ? `Última copia: ${formatearDia(ultimaCopia)}.` : 'Aún sin copias.'}
+            <p className="mb-4 max-w-3xl text-sm text-cafe-600">
+              Cada día, al abrir la aplicación, se guarda sola una copia completa de todo y las hojas
+              de Excel en las carpetas que elijas aquí.
               <br />
-              Cada día, al abrir la aplicación, se guarda sola una copia nueva.
+              <b>Elige carpetas que ya se guarden en la nube</b>: la de <b>OneDrive</b> (que Windows
+              trae puesta) o la de <b>Google Drive</b> si tienes instalado{' '}
+              <i>Google Drive para ordenador</i>. Así la copia sube sola a internet y, aunque el
+              ordenador se estropee, los datos siguen estando.
+              <br />
+              Puedes poner <b>más de una</b>: por ejemplo OneDrive y Google Drive a la vez.
             </p>
+
+            {carpetas.length > 0 && (
+              <ul className="mb-4 grid gap-2 sm:grid-cols-2">
+                {carpetas.map((c, i) => (
+                  <li
+                    key={`${c.nombre}-${i}`}
+                    className="flex items-center justify-between gap-3 rounded-xl border border-cafe-200 bg-white px-4 py-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="truncate font-bold text-cafe-900">{c.nombre}</div>
+                      {!c.permisoConcedido && (
+                        <div className="text-xs font-semibold text-amber-700">
+                          Hay que volver a dar permiso
+                        </div>
+                      )}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`¿Dejar de guardar copias en "${c.nombre}"?`)) return
+                        await quitarCarpeta(i)
+                        await refrescarEstado()
+                        setMensaje(`Ya no se guardarán copias en "${c.nombre}".`)
+                      }}
+                      aria-label={`Quitar ${c.nombre}`}
+                      className="h-8 w-8 shrink-0 rounded-lg text-cafe-300 hover:bg-red-50 hover:text-red-600"
+                    >
+                      ×
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {sinPermiso.length > 0 && (
+              <p className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                El navegador ha olvidado el permiso de{' '}
+                {sinPermiso.map((c) => `"${c.nombre}"`).join(' y ')}. Pulsa{' '}
+                <b>Guardar copia ahora</b> y acepta para volver a activarlo.
+              </p>
+            )}
+
             <div className="flex flex-wrap gap-2">
-              <Boton tono="principal" onClick={copiar} disabled={copiando}>
-                {copiando ? 'Guardando…' : 'Guardar copia ahora'}
+              <Boton tono="principal" onClick={anadir}>
+                {carpetas.length === 0 ? 'Elegir carpeta para las copias' : '+ Añadir otra carpeta'}
               </Boton>
-              <Boton tono="neutro" onClick={elegir}>
-                Cambiar de carpeta
-              </Boton>
-              <Boton
-                tono="neutro"
-                className="!text-red-600"
-                onClick={async () => {
-                  if (!confirm('¿Dejar de hacer copias automáticas?')) return
-                  await olvidarCarpeta()
-                  await refrescarEstado()
-                  setMensaje('Ya no se harán copias automáticas.')
-                }}
-              >
-                Dejar de hacerlas
-              </Boton>
+              {carpetas.length > 0 && (
+                <Boton tono="neutro" onClick={copiar} disabled={copiando}>
+                  {copiando ? 'Guardando…' : 'Guardar copia ahora'}
+                </Boton>
+              )}
             </div>
           </>
         )}
@@ -687,16 +788,42 @@ function CopiaSeguridad() {
       <Tarjeta>
         <h2 className="mb-1 text-lg font-bold text-cafe-900">Descargar a mano</h2>
         <p className="mb-4 text-sm text-cafe-600">
-          La <b>copia de seguridad</b> es el archivo que sirve para recuperarlo todo. Las{' '}
-          <b>hojas de Excel</b> son para mirar los números o dárselos a la gestoría: ventas por día,
-          tickets, consumos y facturas.
+          La <b>copia de seguridad</b> es el archivo que sirve para recuperarlo todo, y siempre lleva
+          el histórico entero. Las <b>hojas de Excel</b> son para mirar los números o dárselos a la
+          gestoría, y de esas puedes elegir el periodo que quieras.
         </p>
+
+        <Campo etiqueta="Periodo de las hojas de Excel" className="mb-3">
+          <select
+            value={periodo}
+            onChange={(e) => setPeriodo(e.target.value as OpcionPeriodo)}
+            className={claseInput}
+          >
+            {OPCIONES_PERIODO.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.nombre}
+              </option>
+            ))}
+          </select>
+        </Campo>
+
+        {periodo === 'personalizado' && (
+          <div className="mb-3 grid grid-cols-2 gap-3">
+            <Campo etiqueta="Desde">
+              <Entrada type="date" value={desde} onChange={(e) => setDesde(e.target.value)} />
+            </Campo>
+            <Campo etiqueta="Hasta">
+              <Entrada type="date" value={hasta} onChange={(e) => setHasta(e.target.value)} />
+            </Campo>
+          </div>
+        )}
+
         <div className="flex flex-wrap gap-2">
-          <Boton tono="principal" onClick={descargarJson}>
-            Copia de seguridad
-          </Boton>
           <Boton tono="neutro" onClick={descargarExcel}>
             Hojas de Excel
+          </Boton>
+          <Boton tono="principal" onClick={descargarJson}>
+            Copia de seguridad
           </Boton>
         </div>
       </Tarjeta>

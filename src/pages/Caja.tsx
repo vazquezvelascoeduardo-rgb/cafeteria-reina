@@ -1,17 +1,32 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../db'
-import { Boton, Campo, Entrada, Etiqueta, Tarjeta, Titulo, Vacio, claseInput } from '../components/ui'
+import { Boton, Campo, Entrada, Etiqueta, Tarjeta, Titulo, Vacio } from '../components/ui'
+import { Calendario } from '../components/Calendario'
 import { eurosACentimos, formatearEuros } from '../lib/dinero'
-import { aDiaLocal, formatearDia, formatearHora } from '../lib/fechas'
+import { aDiaLocal, aMesLocal, formatearDia, formatearHora, rangoDeMes } from '../lib/fechas'
 import { reabrirTicket } from '../lib/acciones'
+import { descargar, generarHojas } from '../lib/exportar'
 
 export function Caja() {
+  const [mes, setMes] = useState(() => aMesLocal())
   const [dia, setDia] = useState(() => aDiaLocal())
   const [contado, setContado] = useState('')
 
+  const rango = rangoDeMes(mes)
+
+  const ticketsDelMes = useLiveQuery(
+    () => db.tickets.where('dia').between(rango.desde, rango.hasta, true, true).toArray(),
+    [rango.desde, rango.hasta],
+    [],
+  )
   const tickets = useLiveQuery(() => db.tickets.where('dia').equals(dia).toArray(), [dia], [])
   const abiertos = useLiveQuery(() => db.tickets.where('estado').equals('abierto').toArray(), [], [])
+
+  const importesPorDia = new Map<string, number>()
+  for (const t of ticketsDelMes) {
+    importesPorDia.set(t.dia, (importesPorDia.get(t.dia) ?? 0) + t.total)
+  }
 
   const cobrados = tickets.filter((t) => t.estado === 'cobrado')
   const aCuenta = tickets.filter((t) => t.estado === 'a_cuenta')
@@ -19,7 +34,6 @@ export function Caja() {
   const efectivo = cobrados.filter((t) => t.metodoPago === 'efectivo').reduce((s, t) => s + t.total, 0)
   const tarjeta = cobrados.filter((t) => t.metodoPago === 'tarjeta').reduce((s, t) => s + t.total, 0)
   const pendiente = aCuenta.reduce((s, t) => s + t.total, 0)
-  const totalCobrado = efectivo + tarjeta
 
   const contadoCentimos = eurosACentimos(contado)
   const descuadre = contadoCentimos === null ? null : contadoCentimos - efectivo
@@ -27,30 +41,32 @@ export function Caja() {
   const esHoy = dia === aDiaLocal()
   const ordenados = [...tickets].sort((a, b) => (b.cerradoEn ?? 0) - (a.cerradoEn ?? 0))
 
+  const descargarMes = async () => {
+    const hojas = await generarHojas(rango)
+    for (const hoja of hojas) {
+      descargar(hoja.nombre.replace('.csv', `-${mes}.csv`), hoja.contenido)
+    }
+  }
+
   return (
     <div>
       <Titulo
         extra={
-          <div className="flex items-center gap-2">
-            <input
-              type="date"
-              value={dia}
-              max={aDiaLocal()}
-              onChange={(e) => {
-                setDia(e.target.value)
+          !esHoy && (
+            <Boton
+              tono="suave"
+              onClick={() => {
+                setDia(aDiaLocal())
+                setMes(aMesLocal())
                 setContado('')
               }}
-              className={`${claseInput} w-44`}
-            />
-            {!esHoy && (
-              <Boton tono="suave" onClick={() => setDia(aDiaLocal())}>
-                Hoy
-              </Boton>
-            )}
-          </div>
+            >
+              Volver a hoy
+            </Boton>
+          )
         }
       >
-        Caja del {formatearDia(dia)}
+        Caja
       </Titulo>
 
       {esHoy && abiertos.length > 0 && (
@@ -61,71 +77,93 @@ export function Caja() {
         </div>
       )}
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Dato titulo="Total cobrado" valor={formatearEuros(totalCobrado)} destacado />
-        <Dato titulo="Efectivo" valor={formatearEuros(efectivo)} />
-        <Dato titulo="Tarjeta" valor={formatearEuros(tarjeta)} />
-        <Dato
-          titulo="A cuenta (sin cobrar)"
-          valor={formatearEuros(pendiente)}
-          nota={`${aCuenta.length} ${aCuenta.length === 1 ? 'ticket' : 'tickets'}`}
-        />
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
-        <Tarjeta>
-          <h2 className="mb-1 text-lg font-bold text-cafe-900">Cuadrar el efectivo</h2>
-          <p className="mb-4 text-sm text-cafe-500">
-            Cuenta el dinero del cajón (sin el cambio inicial) y escríbelo aquí.
-          </p>
-
-          <Campo etiqueta="Dinero contado en el cajón (€)">
-            <Entrada
-              value={contado}
-              onChange={(e) => setContado(e.target.value)}
-              inputMode="decimal"
-              placeholder="0,00"
-              className="!text-2xl !font-bold"
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,420px)_1fr]">
+        <div>
+          <Tarjeta>
+            <Calendario
+              mes={mes}
+              onCambiarMes={setMes}
+              importesPorDia={importesPorDia}
+              diaSeleccionado={dia}
+              onSeleccionarDia={(d) => {
+                setDia(d)
+                setContado('')
+              }}
             />
-          </Campo>
+            <div className="mt-4 border-t border-cafe-100 pt-4">
+              <Boton tono="neutro" onClick={descargarMes} className="w-full">
+                Descargar este mes en Excel
+              </Boton>
+            </div>
+          </Tarjeta>
 
-          <div className="mt-4 space-y-2 text-sm">
-            <Fila etiqueta="Debería haber" valor={formatearEuros(efectivo)} />
-            {contadoCentimos !== null && (
-              <Fila etiqueta="Has contado" valor={formatearEuros(contadoCentimos)} />
-            )}
-          </div>
+          <Tarjeta className="mt-6">
+            <h2 className="mb-1 text-lg font-bold text-cafe-900">Cuadrar el efectivo</h2>
+            <p className="mb-4 text-sm text-cafe-500">
+              Cuenta el dinero del cajón (sin el cambio inicial) y escríbelo aquí.
+            </p>
 
-          {descuadre !== null && (
-            <div
-              className={`mt-4 rounded-xl px-4 py-3 text-center ${
-                descuadre === 0
-                  ? 'bg-emerald-100 text-emerald-900'
-                  : Math.abs(descuadre) <= 100
-                    ? 'bg-amber-100 text-amber-900'
-                    : 'bg-red-100 text-red-900'
-              }`}
-            >
-              {descuadre === 0 ? (
-                <span className="text-lg font-bold">La caja cuadra perfecta</span>
-              ) : (
-                <>
-                  <div className="text-sm font-semibold">
-                    {descuadre > 0 ? 'Sobra dinero' : 'Falta dinero'}
-                  </div>
-                  <div className="text-3xl font-bold tabular-nums">
-                    {formatearEuros(Math.abs(descuadre))}
-                  </div>
-                </>
+            <Campo etiqueta="Dinero contado en el cajón (€)">
+              <Entrada
+                value={contado}
+                onChange={(e) => setContado(e.target.value)}
+                inputMode="decimal"
+                placeholder="0,00"
+                className="!text-2xl !font-bold"
+              />
+            </Campo>
+
+            <div className="mt-4 space-y-2 text-sm">
+              <Fila etiqueta="Debería haber" valor={formatearEuros(efectivo)} />
+              {contadoCentimos !== null && (
+                <Fila etiqueta="Has contado" valor={formatearEuros(contadoCentimos)} />
               )}
             </div>
-          )}
-        </Tarjeta>
+
+            {descuadre !== null && (
+              <div
+                className={`mt-4 rounded-xl px-4 py-3 text-center ${
+                  descuadre === 0
+                    ? 'bg-emerald-100 text-emerald-900'
+                    : Math.abs(descuadre) <= 100
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-red-100 text-red-900'
+                }`}
+              >
+                {descuadre === 0 ? (
+                  <span className="text-lg font-bold">La caja cuadra perfecta</span>
+                ) : (
+                  <>
+                    <div className="text-sm font-semibold">
+                      {descuadre > 0 ? 'Sobra dinero' : 'Falta dinero'}
+                    </div>
+                    <div className="text-3xl font-bold tabular-nums">
+                      {formatearEuros(Math.abs(descuadre))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </Tarjeta>
+        </div>
 
         <div>
-          <h2 className="mb-3 text-lg font-bold text-cafe-900">
-            Tickets del día ({tickets.length})
+          <h2 className="mb-4 text-xl font-bold text-cafe-900">
+            {esHoy ? 'Hoy' : formatearDia(dia)}
           </h2>
+
+          <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <Dato titulo="Total cobrado" valor={formatearEuros(efectivo + tarjeta)} destacado />
+            <Dato titulo="Efectivo" valor={formatearEuros(efectivo)} />
+            <Dato titulo="Tarjeta" valor={formatearEuros(tarjeta)} />
+            <Dato
+              titulo="A cuenta (sin cobrar)"
+              valor={formatearEuros(pendiente)}
+              nota={`${aCuenta.length} ${aCuenta.length === 1 ? 'ticket' : 'tickets'}`}
+            />
+          </div>
+
+          <h3 className="mb-3 font-bold text-cafe-900">Tickets ({tickets.length})</h3>
           {ordenados.length === 0 ? (
             <Vacio>No hay ningún ticket cobrado este día.</Vacio>
           ) : (

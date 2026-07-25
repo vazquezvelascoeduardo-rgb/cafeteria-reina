@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from './db'
 import { copiaAutomaticaSiToca } from './lib/copiaAutomatica'
+import { Inicio } from './pages/Inicio'
 import { Mesas } from './pages/Mesas'
 import { Comanda } from './pages/Comanda'
 import { Caja } from './pages/Caja'
@@ -11,9 +12,10 @@ import { Informes } from './pages/Informes'
 import { Ajustes } from './pages/Ajustes'
 import { formatearEuros } from './lib/dinero'
 
-type Vista = 'mesas' | 'caja' | 'clientes' | 'facturas' | 'informes' | 'ajustes'
+type Vista = 'inicio' | 'mesas' | 'caja' | 'clientes' | 'facturas' | 'informes' | 'ajustes'
 
 const PESTANAS: { id: Vista; nombre: string; icono: string }[] = [
+  { id: 'inicio', nombre: 'Inicio', icono: '🏠' },
   { id: 'mesas', nombre: 'Mesas', icono: '🍽️' },
   { id: 'caja', nombre: 'Caja', icono: '💶' },
   { id: 'clientes', nombre: 'Clientes', icono: '👤' },
@@ -44,7 +46,12 @@ export default function App() {
     <div className="flex h-full flex-col">
       <header className="no-imprimir shrink-0 border-b border-cafe-200 bg-white">
         <div className="mx-auto flex max-w-[1600px] items-center gap-2 px-4 py-2">
-          <span className="mr-2 hidden text-lg font-bold text-cafe-800 sm:block">Cafetería Reina</span>
+          <button
+            onClick={() => ir('inicio')}
+            className="mr-2 hidden shrink-0 rounded-xl px-2 py-1 text-lg font-bold text-cafe-800 hover:bg-cafe-100 sm:block"
+          >
+            Cafetería Reina
+          </button>
 
           <nav className="flex flex-1 gap-1 overflow-x-auto">
             {PESTANAS.map((p) => (
@@ -85,6 +92,7 @@ export default function App() {
             <Comanda ticketId={ticketId} onSalir={() => setTicketId(null)} />
           ) : (
             <>
+              {vista === 'inicio' && <Inicio onIr={ir} />}
               {vista === 'mesas' && <Mesas onAbrirComanda={setTicketId} />}
               {vista === 'caja' && <Caja />}
               {vista === 'clientes' && (

@@ -4,16 +4,17 @@ import { generarHojas } from './exportar'
 import { aDiaLocal } from './fechas'
 
 /**
- * Copia automática de los datos a una carpeta del ordenador.
+ * Copia automática de los datos a una o varias carpetas del ordenador.
  *
- * Si esa carpeta está dentro de OneDrive (o Google Drive, o Dropbox), el propio
- * Windows se encarga de subirla a la nube. Así los datos dejan de vivir solo
- * dentro del navegador sin necesidad de montar ningún servidor.
+ * La gracia está en elegir carpetas que ya se sincronizan solas con la nube:
+ * la de OneDrive (que Windows trae puesta) o la de Google Drive para escritorio.
+ * Se puede tener más de una a la vez, y así la copia queda en dos sitios
+ * distintos sin depender de ningún servidor propio.
  *
  * Usa la File System Access API, que funciona en Chrome y Edge de escritorio.
  */
 
-const CLAVE_CARPETA = 'carpetaCopias'
+const CLAVE_CARPETAS = 'carpetasCopia'
 const CLAVE_ULTIMA = 'ultimaCopia'
 
 // El navegador todavía no tiene estos métodos en los tipos estándar
@@ -31,46 +32,70 @@ declare global {
   }
 }
 
+export type CarpetaCopia = {
+  nombre: string
+  /** Si el navegador ha olvidado el permiso, hay que volver a concederlo con un clic */
+  permisoConcedido: boolean
+}
+
 /** ¿Puede este navegador guardar en una carpeta? (Chrome y Edge sí, Firefox y Safari no) */
 export function hayApiDeCarpetas(): boolean {
   return typeof window.showDirectoryPicker === 'function'
 }
 
-async function leerHandle(): Promise<HandleConPermisos | null> {
-  const fila = await db.config.get(CLAVE_CARPETA)
-  return (fila?.valor as HandleConPermisos | undefined) ?? null
+async function leerHandles(): Promise<HandleConPermisos[]> {
+  const fila = await db.config.get(CLAVE_CARPETAS)
+  const valor = fila?.valor
+  return Array.isArray(valor) ? (valor as HandleConPermisos[]) : []
 }
 
-export async function estadoCopia(): Promise<{
-  carpeta: string | null
-  ultimaCopia: string | null
-}> {
-  const handle = await leerHandle()
-  const ultima = await db.config.get(CLAVE_ULTIMA)
-  return {
-    carpeta: handle?.name ?? null,
-    ultimaCopia: (ultima?.valor as string | undefined) ?? null,
-  }
-}
-
-/** Pregunta al usuario en qué carpeta quiere las copias y la recuerda */
-export async function elegirCarpeta(): Promise<string | null> {
-  if (!window.showDirectoryPicker) return null
-
-  const handle = await window.showDirectoryPicker({ mode: 'readwrite', startIn: 'documents' })
-  await db.config.put({ clave: CLAVE_CARPETA, valor: handle })
-  return handle.name
-}
-
-export async function olvidarCarpeta() {
-  await db.config.delete(CLAVE_CARPETA)
-  await db.config.delete(CLAVE_ULTIMA)
+async function guardarHandles(handles: HandleConPermisos[]) {
+  await db.config.put({ clave: CLAVE_CARPETAS, valor: handles })
 }
 
 /** El permiso de una carpeta puede caducar al cerrar el navegador */
 async function tienePermiso(handle: HandleConPermisos): Promise<boolean> {
   if (typeof handle.queryPermission !== 'function') return true
-  return (await handle.queryPermission({ mode: 'readwrite' })) === 'granted'
+  try {
+    return (await handle.queryPermission({ mode: 'readwrite' })) === 'granted'
+  } catch {
+    return false
+  }
+}
+
+export async function listarCarpetas(): Promise<CarpetaCopia[]> {
+  const handles = await leerHandles()
+  return Promise.all(
+    handles.map(async (h) => ({ nombre: h.name, permisoConcedido: await tienePermiso(h) })),
+  )
+}
+
+export async function ultimaCopia(): Promise<string | null> {
+  const fila = await db.config.get(CLAVE_ULTIMA)
+  return (fila?.valor as string | undefined) ?? null
+}
+
+/** Pregunta en qué carpeta guardar y la añade a la lista */
+export async function anadirCarpeta(): Promise<string | null> {
+  if (!window.showDirectoryPicker) return null
+
+  const nuevo = (await window.showDirectoryPicker({
+    mode: 'readwrite',
+    startIn: 'documents',
+  })) as HandleConPermisos
+
+  const handles = await leerHandles()
+  for (const existente of handles) {
+    if (await existente.isSameEntry(nuevo)) return existente.name // ya estaba
+  }
+
+  await guardarHandles([...handles, nuevo])
+  return nuevo.name
+}
+
+export async function quitarCarpeta(indice: number) {
+  const handles = await leerHandles()
+  await guardarHandles(handles.filter((_, i) => i !== indice))
 }
 
 async function escribir(carpeta: FileSystemDirectoryHandle, nombre: string, contenido: string) {
@@ -80,52 +105,81 @@ async function escribir(carpeta: FileSystemDirectoryHandle, nombre: string, cont
   await escritura.close()
 }
 
-/**
- * Escribe en la carpeta la copia completa en JSON (la que sirve para restaurar)
- * y las hojas de Excel (las que sirven para mirar los números).
- */
-export async function copiarAhora(): Promise<{ carpeta: string; archivos: number }> {
-  const handle = await leerHandle()
-  if (!handle) throw new Error('Todavía no has elegido ninguna carpeta para las copias')
-
-  if (!(await tienePermiso(handle))) {
-    if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
-      throw new Error('No has dado permiso para escribir en esa carpeta')
-    }
-  }
-
-  const hoy = aDiaLocal()
+/** Los archivos que se dejan en cada carpeta de copia */
+async function archivosDeLaCopia(): Promise<{ nombre: string; contenido: string }[]> {
   const copia = await exportarCopia()
-  await escribir(handle, `copia-cafeteria-${hoy}.json`, JSON.stringify(copia, null, 2))
-
   const hojas = await generarHojas()
-  for (const hoja of hojas) {
-    await escribir(handle, hoja.nombre, hoja.contenido)
-  }
+  return [
+    { nombre: `copia-cafeteria-${aDiaLocal()}.json`, contenido: JSON.stringify(copia, null, 2) },
+    ...hojas,
+  ]
+}
 
-  await db.config.put({ clave: CLAVE_ULTIMA, valor: hoy })
-  return { carpeta: handle.name, archivos: hojas.length + 1 }
+export type ResultadoCopia = {
+  guardadas: string[]
+  fallidas: { carpeta: string; motivo: string }[]
+  archivos: number
 }
 
 /**
- * Se llama al abrir la app: si hay carpeta elegida, el permiso sigue vivo y
- * hoy todavía no se ha copiado, hace la copia sin molestar a nadie.
+ * Escribe la copia en todas las carpetas configuradas.
+ * `pedirPermiso` solo puede ser true si viene de un clic del usuario.
+ */
+export async function copiarAhora(pedirPermiso = true): Promise<ResultadoCopia> {
+  const handles = await leerHandles()
+  if (handles.length === 0) throw new Error('Todavía no has elegido ninguna carpeta para las copias')
+
+  const archivos = await archivosDeLaCopia()
+  const guardadas: string[] = []
+  const fallidas: { carpeta: string; motivo: string }[] = []
+
+  for (const handle of handles) {
+    try {
+      if (!(await tienePermiso(handle))) {
+        if (!pedirPermiso) {
+          fallidas.push({ carpeta: handle.name, motivo: 'hace falta volver a dar permiso' })
+          continue
+        }
+        if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
+          fallidas.push({ carpeta: handle.name, motivo: 'no se ha dado permiso' })
+          continue
+        }
+      }
+      for (const archivo of archivos) {
+        await escribir(handle, archivo.nombre, archivo.contenido)
+      }
+      guardadas.push(handle.name)
+    } catch (e) {
+      fallidas.push({
+        carpeta: handle.name,
+        motivo: e instanceof Error ? e.message : 'error desconocido',
+      })
+    }
+  }
+
+  // Solo se da el día por copiado si al menos una carpeta ha recibido los datos
+  if (guardadas.length > 0) {
+    await db.config.put({ clave: CLAVE_ULTIMA, valor: aDiaLocal() })
+  }
+
+  return { guardadas, fallidas, archivos: archivos.length }
+}
+
+/**
+ * Se llama al abrir la app: si hay carpetas y hoy todavía no se ha copiado,
+ * hace la copia sin molestar a nadie.
  *
- * Si el permiso caducó no se pide aquí: pedirlo requiere que el usuario acabe
- * de hacer clic en algo, así que se avisa desde la pantalla de Ajustes.
+ * Nunca pide permisos aquí: pedirlos requiere que el usuario acabe de hacer
+ * clic en algo. Si el permiso caducó, se avisa desde Inicio y desde Ajustes.
  */
 export async function copiaAutomaticaSiToca(): Promise<boolean> {
   try {
-    const handle = await leerHandle()
-    if (!handle) return false
+    const handles = await leerHandles()
+    if (handles.length === 0) return false
+    if ((await ultimaCopia()) === aDiaLocal()) return false
 
-    const ultima = await db.config.get(CLAVE_ULTIMA)
-    if (ultima?.valor === aDiaLocal()) return false
-
-    if (!(await tienePermiso(handle))) return false
-
-    await copiarAhora()
-    return true
+    const resultado = await copiarAhora(false)
+    return resultado.guardadas.length > 0
   } catch {
     // Una copia que falla nunca debe impedir que se abra la caja
     return false
