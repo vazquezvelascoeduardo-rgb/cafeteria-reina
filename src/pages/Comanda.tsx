@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { db, type Cliente, type Producto } from '../db'
 import { Boton, Campo, Entrada, Etiqueta, Importe, Modal, Vacio, claseInput } from '../components/ui'
 import { TecladoNumerico } from '../components/TecladoNumerico'
+import { IconoCajon } from '../components/iconos'
 import {
   desglosarCambio,
   eurosACentimos,
@@ -225,26 +226,40 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
         </div>
 
         <div className="p-5 pt-4">
-          <Boton
-            tono="exito"
-            disabled={vacia}
-            onClick={() => setModal('cobro')}
-            className="mb-2 flex h-16 w-full items-center justify-center gap-3 !rounded-2xl !text-xl"
-          >
-            <svg
-              width="22"
-              height="22"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2.2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
+          <div className="mb-2 flex gap-2">
+            <Boton
+              tono="exito"
+              disabled={vacia}
+              onClick={() => setModal('cobro')}
+              className="flex h-16 flex-1 items-center justify-center gap-3 !rounded-2xl !text-xl"
             >
-              <path d="M20 6L9 17l-5-5" />
-            </svg>
-            Cobrar
-          </Boton>
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              Cobrar
+            </Boton>
+
+            {ajustes && (
+              <Boton
+                tono="neutro"
+                aria-label="Abrir el cajón"
+                title="Abrir el cajón"
+                onClick={() => abrirCajonComoToque(ajustes).catch(() => {})}
+                className="grid h-16 w-16 shrink-0 place-items-center !rounded-2xl"
+              >
+                <IconoCajon tamano={28} />
+              </Boton>
+            )}
+          </div>
 
           <div className="grid grid-cols-2 gap-2">
             <Boton tono="neutro" disabled={vacia} onClick={() => setModal('cuenta')}>

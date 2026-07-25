@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from './db'
 import { Emblema } from './components/Logo'
+import { IconoCajon } from './components/iconos'
+import { abrirCajonComoToque } from './lib/cajon'
 import { Inicio } from './pages/Inicio'
 import { Mesas } from './pages/Mesas'
 import { Comanda } from './pages/Comanda'
@@ -82,6 +84,7 @@ export default function App() {
   const [ahora, setAhora] = useState(() => new Date())
 
   const abiertos = useLiveQuery(() => db.tickets.where('estado').equals('abierto').toArray(), [], [])
+  const ajustes = useLiveQuery(() => db.ajustes.get(1), [])
   const ticket = useLiveQuery(
     async () => (ticketId === null ? null : ((await db.tickets.get(ticketId)) ?? null)),
     [ticketId],
@@ -198,6 +201,17 @@ export default function App() {
           </div>
 
           <div className="flex-1" />
+
+          {ajustes && (
+            <button
+              onClick={() => abrirCajonComoToque(ajustes).catch(() => {})}
+              aria-label="Abrir el cajón"
+              title="Abrir el cajón"
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-borde-fuerte bg-lino text-cafe-600 transition-colors hover:border-oro-medio hover:bg-cafe-100"
+            >
+              <IconoCajon tamano={24} />
+            </button>
+          )}
 
           {abiertos.length > 0 && (
             <button
