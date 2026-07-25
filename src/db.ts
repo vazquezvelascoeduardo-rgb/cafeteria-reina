@@ -163,6 +163,12 @@ export type Ajustes = {
   // --- Cajón portamonedas ---
   /** 1 = el cajón se abre solo al cobrar en efectivo */
   abrirCajonAlCobrar: number
+  /**
+   * Por dónde se le pide la apertura:
+   * 'ayudante' = el programita instalado en Windows (lo normal, para USB)
+   * 'serie'    = directamente al puerto serie de la impresora
+   */
+  modoCajon: string
   /** Velocidad del puerto de la impresora. Casi todas van a 9600 */
   baudiosCajon: number
 }
@@ -393,6 +399,7 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   mostrarLogoTicket: 1,
   imprimirAlCobrar: 0,
   abrirCajonAlCobrar: 1,
+  modoCajon: 'ayudante',
   baudiosCajon: 9600,
 }
 

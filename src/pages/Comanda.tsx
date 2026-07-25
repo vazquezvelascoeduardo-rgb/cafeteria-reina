@@ -12,7 +12,7 @@ import {
   totalLinea,
 } from '../lib/dinero'
 import { imprimirTicket } from '../lib/ticket'
-import { abrirCajon } from '../lib/cajon'
+import { abrirCajonComoToque } from '../lib/cajon'
 import {
   anadirLineaLibre,
   anadirProducto,
@@ -282,7 +282,7 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
 
           // El cajón solo se abre con el efectivo: con tarjeta no hay que dar cambio
           if (metodo === 'efectivo' && ajustes?.abrirCajonAlCobrar === 1) {
-            abrirCajon(ajustes.baudiosCajon).catch(() => {
+            abrirCajonComoToque(ajustes).catch(() => {
               // Que el cajón falle no puede dejar la venta a medias
             })
           }

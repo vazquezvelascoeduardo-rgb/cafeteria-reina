@@ -10,7 +10,7 @@ import {
   type Ticket,
 } from '../db'
 import {
-  abrirCajon,
+  abrirCajonComoToque,
   conectarCajon,
   estadoCajon,
   haySoporteCajon,
@@ -620,8 +620,12 @@ function CajonPortamonedas({ ajustes }: { ajustes: AjustesTipo }) {
     setProbando(true)
     setMensaje('')
     try {
-      await abrirCajon(ajustes.baudiosCajon)
-      setMensaje('Pulso enviado. El cajón debería haberse abierto.')
+      await abrirCajonComoToque(ajustes)
+      setMensaje(
+        ajustes.modoCajon === 'ayudante'
+          ? 'Orden enviada al ayudante. Si el cajón no se ha abierto, comprueba que has ejecutado Instalar-cajon.bat en este ordenador.'
+          : 'Pulso enviado. El cajón debería haberse abierto.',
+      )
     } catch (e) {
       setMensaje(e instanceof Error ? e.message : 'No se ha podido abrir el cajón')
     } finally {
@@ -641,28 +645,17 @@ function CajonPortamonedas({ ajustes }: { ajustes: AjustesTipo }) {
           ))}
       </div>
 
-      {!soportado ? (
+      {!soportado && ajustes.modoCajon === 'serie' ? (
         <p className="text-sm text-cafe-600">
-          Este navegador no puede hablar con el cajón. Abre la aplicación con <b>Chrome</b> o{' '}
-          <b>Edge</b> en el ordenador.
+          Este navegador no puede hablar por el puerto serie. Abre la aplicación con <b>Chrome</b> o{' '}
+          <b>Edge</b> en el ordenador, o usa el ayudante instalado.
         </p>
       ) : (
         <>
           <p className="mb-3 text-sm text-cafe-600">
             El cajón no se enchufa al ordenador, sino a la impresora de tickets con un cable de
-            teléfono. Por eso, en la lista que sale al pulsar el botón <b>no busques el cajón</b>:
-            hay que elegir <b>la impresora</b>. Y hay que hacerlo en el propio ordenador de la
-            cafetería, que es donde está enchufada.
+            teléfono. La aplicación le pide a la impresora que lo abra.
           </p>
-
-          <div className="mb-4 rounded-xl border border-[#F0DCA6] bg-[#FFF8E6] px-4 py-3 text-sm text-[#7A5B12]">
-            <b>Prueba esto primero, que es más sencillo:</b> casi todas las impresoras de tickets
-            abren el cajón ellas solas al imprimir. En Windows, <i>Configuración → Impresoras</i> →
-            tu impresora → <i>Preferencias de impresión</i>, y busca una opción tipo{' '}
-            <i>Cash drawer</i> o <i>Abrir cajón al imprimir</i>. Si la activas, con marcar aquí
-            arriba «imprimir el ticket al cobrar» ya se abre solo, y no hace falta configurar nada
-            más en esta pantalla.
-          </div>
 
           <label className="mb-3 flex cursor-pointer items-center gap-3 rounded-xl bg-cafe-100 px-4 py-3">
             <input
@@ -676,39 +669,67 @@ function CajonPortamonedas({ ajustes }: { ajustes: AjustesTipo }) {
             </span>
           </label>
 
-          <Campo etiqueta="Velocidad del puerto" ayuda="Casi todas las impresoras van a 9600" className="mb-4">
+          <Campo etiqueta="Por dónde se le pide" className="mb-4">
             <select
-              value={ajustes.baudiosCajon}
-              onChange={(e) => db.ajustes.update(1, { baudiosCajon: Number(e.target.value) })}
+              value={ajustes.modoCajon}
+              onChange={(e) => db.ajustes.update(1, { modoCajon: e.target.value })}
               className={claseInput}
             >
-              {[9600, 19200, 38400, 57600, 115200].map((b) => (
-                <option key={b} value={b}>
-                  {b}
-                </option>
-              ))}
+              <option value="ayudante">Con el ayudante instalado (lo normal)</option>
+              <option value="serie">Por el puerto serie de la impresora</option>
             </select>
           </Campo>
 
+          {ajustes.modoCajon === 'ayudante' ? (
+            <div className="mb-4 rounded-xl border border-borde bg-lino px-4 py-3 text-sm text-cafe-600">
+              Hace falta instalarlo una vez en este ordenador: ejecuta{' '}
+              <b>Instalar-cajon.bat</b> de la carpeta <i>herramientas</i>. La primera vez que se
+              abra el cajón, el navegador preguntará si permite abrirlo: marca la casilla de
+              recordarlo y dile que sí.
+            </div>
+          ) : (
+            <Campo
+              etiqueta="Velocidad del puerto"
+              ayuda="Solo si la impresora tiene puerto serie. Casi todas van a 9600"
+              className="mb-4"
+            >
+              <select
+                value={ajustes.baudiosCajon}
+                onChange={(e) => db.ajustes.update(1, { baudiosCajon: Number(e.target.value) })}
+                className={claseInput}
+              >
+                {[9600, 19200, 38400, 57600, 115200].map((b) => (
+                  <option key={b} value={b}>
+                    {b}
+                  </option>
+                ))}
+              </select>
+            </Campo>
+          )}
+
           <div className="flex flex-wrap gap-2">
-            <Boton tono="principal" onClick={conectar}>
-              {estado.configurado ? 'Elegir otra impresora' : 'Conectar el cajón'}
-            </Boton>
-            <Boton tono="neutro" onClick={probar} disabled={!estado.configurado || probando}>
+            <Boton tono="principal" onClick={probar} disabled={probando}>
               {probando ? 'Abriendo…' : 'Abrir el cajón ahora'}
             </Boton>
-            {estado.configurado && (
-              <Boton
-                tono="neutro"
-                className="!text-anular"
-                onClick={async () => {
-                  await olvidarCajon()
-                  await refrescar()
-                  setMensaje('')
-                }}
-              >
-                Quitar
-              </Boton>
+            {ajustes.modoCajon === 'serie' && (
+              <>
+                <Boton tono="neutro" onClick={conectar}>
+                  {estado.configurado ? 'Elegir otra impresora' : 'Elegir la impresora'}
+                </Boton>
+                {estado.configurado && (
+                  <Boton
+                    tono="neutro"
+                    className="!text-anular"
+                    onClick={async () => {
+                      await olvidarCajon()
+                      await refrescar()
+                      setMensaje('')
+                    }}
+                  >
+                    Quitar
+                  </Boton>
+                )}
+              </>
             )}
           </div>
 

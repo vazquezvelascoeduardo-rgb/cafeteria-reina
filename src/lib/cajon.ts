@@ -85,9 +85,34 @@ export async function olvidarCajon() {
   await db.config.delete(CLAVE_PUERTO)
 }
 
+/**
+ * Pide la apertura al ayudante instalado en el ordenador.
+ *
+ * Una página web no puede ejecutar programas, así que se usa el mismo truco que
+ * los enlaces "mailto:": el instalador registra en Windows el enlace
+ * "cajonreina:", y al abrirlo Windows lanza el script que manda el pulso a la
+ * impresora. Esta es la vía buena para impresoras USB, que no tienen puerto
+ * serie al que asomarse.
+ */
+export function abrirCajonPorAyudante() {
+  window.location.href = 'cajonreina:abrir'
+}
+
 export class CajonNoConfigurado extends Error {}
 
-/** Manda el pulso. Devuelve cuando el cajón ya ha recibido el comando */
+/** Abre el cajón por donde toque según lo que esté configurado */
+export async function abrirCajonComoToque(ajustes: {
+  modoCajon: string
+  baudiosCajon: number
+}): Promise<void> {
+  if (ajustes.modoCajon === 'serie') {
+    await abrirCajon(ajustes.baudiosCajon)
+    return
+  }
+  abrirCajonPorAyudante()
+}
+
+/** Manda el pulso por el puerto serie. Solo para impresoras que lo tengan */
 export async function abrirCajon(baudios = 9600): Promise<void> {
   const puerto = await buscarPuerto()
   if (!puerto) {
