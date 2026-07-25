@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db } from '../db'
 import { BarraAcciones, Tarjeta, Vacio, claseInput } from '../components/ui'
-import { formatearEuros } from '../lib/dinero'
+import { desglosePago, formatearEuros } from '../lib/dinero'
 import { aDiaLocal, etiquetaDiaCorta, formatearDia, nombreMes, ultimosDias } from '../lib/fechas'
 
 type Rango = '7' | '30' | '90' | 'todo'
@@ -27,9 +27,18 @@ export function Informes() {
   const enRango = tickets.filter((t) => t.dia >= desde)
 
   const total = enRango.reduce((s, t) => s + t.total, 0)
-  const efectivo = enRango.filter((t) => t.metodoPago === 'efectivo').reduce((s, t) => s + t.total, 0)
-  const tarjeta = enRango.filter((t) => t.metodoPago === 'tarjeta').reduce((s, t) => s + t.total, 0)
-  const cuenta = enRango.filter((t) => t.metodoPago === 'cuenta').reduce((s, t) => s + t.total, 0)
+  const porVia = enRango.reduce(
+    (suma, t) => {
+      const d = desglosePago(t)
+      return {
+        efectivo: suma.efectivo + d.efectivo,
+        tarjeta: suma.tarjeta + d.tarjeta,
+        cuenta: suma.cuenta + d.cuenta,
+      }
+    },
+    { efectivo: 0, tarjeta: 0, cuenta: 0 },
+  )
+  const { efectivo, tarjeta, cuenta } = porVia
   const ticketMedio = enRango.length === 0 ? 0 : Math.round(total / enRango.length)
 
   // --- Ventas por día ---

@@ -1,4 +1,4 @@
-import type { DesgloseIva, LineaTicket } from '../db'
+import type { DesgloseIva, LineaTicket, Ticket } from '../db'
 
 /**
  * Todo el dinero circula en CÉNTIMOS enteros.
@@ -61,6 +61,26 @@ export function totalLineas(lineas: LineaTicket[]): number {
 }
 
 /**
+ * Cuánto entró por cada vía en un ticket.
+ *
+ * Lo normal es que se pagara de una sola forma, pero si la cuenta se dividió
+ * puede haber una parte en efectivo y otra con tarjeta. Todo lo que cuenta
+ * dinero —la caja, los informes, las hojas de Excel— pasa por aquí.
+ */
+export function desglosePago(ticket: Ticket): { efectivo: number; tarjeta: number; cuenta: number } {
+  const reparto = { efectivo: 0, tarjeta: 0, cuenta: 0 }
+  if (ticket.estado === 'abierto') return reparto
+
+  if (ticket.pagos && ticket.pagos.length > 0) {
+    for (const pago of ticket.pagos) reparto[pago.metodo] += pago.importe
+    return reparto
+  }
+
+  if (ticket.metodoPago) reparto[ticket.metodoPago] = ticket.total
+  return reparto
+}
+
+/**
  * Separa un importe con IVA incluido en base imponible + cuota.
  * Se calcula sobre el total del grupo de IVA, no línea a línea,
  * que es como lo hace una factura correcta (evita descuadres de 1 céntimo).
@@ -79,6 +99,21 @@ export function desgloseCompleto(lineas: { iva: number; importe: number }[]): De
   return [...porTipo.entries()]
     .sort((a, b) => a[0] - b[0])
     .map(([iva, total]) => ({ iva, ...desglosarIva(total, iva) }))
+}
+
+/**
+ * Reparte un importe entre varias personas sin que se pierda ni un céntimo.
+ *
+ * 10,00 € entre 3 no da 3,33 tres veces (serían 9,99): da 3,34, 3,33 y 3,33.
+ * Los céntimos sobrantes se reparten entre los primeros.
+ */
+export function repartirEnPartes(total: number, partes: number): number[] {
+  if (partes < 1) return [total]
+
+  const base = Math.floor(total / partes)
+  const sobran = total - base * partes
+
+  return Array.from({ length: partes }, (_, i) => base + (i < sobran ? 1 : 0))
 }
 
 /** Billetes y monedas de euro, de mayor a menor, en céntimos */

@@ -45,6 +45,15 @@ export type LineaTicket = {
 export type EstadoTicket = 'abierto' | 'cobrado' | 'a_cuenta'
 export type MetodoPago = 'efectivo' | 'tarjeta' | 'cuenta'
 
+/**
+ * Cuando la cuenta se reparte entre varios, cada uno puede pagar como quiera.
+ * Aquí queda anotado cuánto entró por cada vía, para que la caja cuadre.
+ */
+export type Pago = {
+  metodo: MetodoPago
+  importe: number
+}
+
 export type Ticket = {
   id?: number
   /** Número de factura simplificada, p. ej. 'T-2026-0001'. Se pone al cobrar */
@@ -58,6 +67,11 @@ export type Ticket = {
   abiertoEn: number
   cerradoEn: number | null
   metodoPago: MetodoPago | null
+  /**
+   * Solo cuando la cuenta se dividió y se pagó de varias formas. Si está vacío,
+   * manda `metodoPago`, que es lo habitual.
+   */
+  pagos?: Pago[]
   /** Céntimos */
   total: number
   recibido: number | null

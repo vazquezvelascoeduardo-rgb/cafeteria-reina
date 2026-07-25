@@ -1,4 +1,5 @@
 import { db, type Ticket } from '../db'
+import { desglosePago } from './dinero'
 import { formatearDia, formatearHora } from './fechas'
 
 /**
@@ -33,14 +34,20 @@ const NOMBRE_PAGO: Record<string, string> = {
   cuenta: 'A cuenta',
 }
 
+function comoSePago(t: Ticket): string {
+  if (t.pagos && t.pagos.length > 0) return 'Dividido'
+  return NOMBRE_PAGO[t.metodoPago ?? ''] ?? ''
+}
+
 function hojaResumenDiario(tickets: Ticket[]): Hoja {
   const porDia = new Map<string, { efectivo: number; tarjeta: number; cuenta: number; tickets: number }>()
 
   for (const t of tickets) {
     const dia = porDia.get(t.dia) ?? { efectivo: 0, tarjeta: 0, cuenta: 0, tickets: 0 }
-    if (t.metodoPago === 'efectivo') dia.efectivo += t.total
-    if (t.metodoPago === 'tarjeta') dia.tarjeta += t.total
-    if (t.metodoPago === 'cuenta') dia.cuenta += t.total
+    const reparto = desglosePago(t)
+    dia.efectivo += reparto.efectivo
+    dia.tarjeta += reparto.tarjeta
+    dia.cuenta += reparto.cuenta
     dia.tickets++
     porDia.set(t.dia, dia)
   }
@@ -73,7 +80,7 @@ function hojaTickets(tickets: Ticket[]): Hoja {
       formatearDia(t.dia),
       t.cerradoEn ? formatearHora(t.cerradoEn) : '',
       t.mesaNombre,
-      NOMBRE_PAGO[t.metodoPago ?? ''] ?? '',
+      comoSePago(t),
       t.clienteNombre ?? '',
       t.lineas.reduce((s, l) => s + l.cantidad, 0),
       importe(t.total),

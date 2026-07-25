@@ -5,6 +5,7 @@ import {
   type LineaFactura,
   type LineaTicket,
   type MetodoPago,
+  type Pago,
   type Producto,
   type Ticket,
 } from '../db'
@@ -152,9 +153,23 @@ export async function moverTicket(ticketId: number, mesaId: number, mesaNombre: 
 }
 
 /**
+ * Reserva el siguiente número de factura simplificada.
+ * Se llama siempre dentro de una transacción, para que no se repita nunca.
+ */
+async function reservarNumero(dia: string): Promise<string | null> {
+  const ajustes = await db.ajustes.get(1)
+  if (!ajustes) return null
+
+  const ejercicio = Number(dia.slice(0, 4))
+  const contador = ajustes.ejercicioTicket === ejercicio ? ajustes.contadorTicket + 1 : 1
+  await db.ajustes.update(1, { contadorTicket: contador, ejercicioTicket: ejercicio })
+
+  return `${ajustes.serieTicket}-${ejercicio}-${String(contador).padStart(4, '0')}`
+}
+
+/**
  * Cierra el ticket como cobrado (efectivo o tarjeta) y le asigna su número de
  * factura simplificada, que es lo que va impreso en el papel que se entrega.
- * El número se reserva dentro de la transacción para que no se repita nunca.
  */
 export async function cobrarTicket(
   ticketId: number,
@@ -165,22 +180,15 @@ export async function cobrarTicket(
     const ticket = await db.tickets.get(ticketId)
     if (!ticket || ticket.estado !== 'abierto') return null
 
-    const ajustes = await db.ajustes.get(1)
     const dia = aDiaLocal()
-    const ejercicio = Number(dia.slice(0, 4))
-
-    let numero = ticket.numero ?? null
-    if (ajustes && !numero) {
-      const contador = ajustes.ejercicioTicket === ejercicio ? ajustes.contadorTicket + 1 : 1
-      numero = `${ajustes.serieTicket}-${ejercicio}-${String(contador).padStart(4, '0')}`
-      await db.ajustes.update(1, { contadorTicket: contador, ejercicioTicket: ejercicio })
-    }
-
+    const numero = ticket.numero ?? (await reservarNumero(dia))
     const total = totalLineas(ticket.lineas)
+
     const cambios = {
       numero,
       estado: 'cobrado' as const,
       metodoPago,
+      pagos: undefined,
       total,
       recibido: metodoPago === 'efectivo' ? recibido : null,
       cambio: metodoPago === 'efectivo' && recibido !== null ? recibido - total : null,
@@ -189,6 +197,119 @@ export async function cobrarTicket(
     }
     await db.tickets.update(ticketId, cambios)
     return { ...ticket, ...cambios }
+  })
+}
+
+/**
+ * Cierra el ticket cuando la cuenta se ha repartido a partes iguales y cada
+ * uno ha pagado como ha querido.
+ *
+ * Sale un único ticket, con el detalle de lo consumido intacto, pero anotando
+ * cuánto entró en efectivo y cuánto con tarjeta para que la caja cuadre.
+ */
+export async function cobrarTicketRepartido(
+  ticketId: number,
+  pagos: Pago[],
+): Promise<Ticket | null> {
+  return db.transaction('rw', db.tickets, db.ajustes, async () => {
+    const ticket = await db.tickets.get(ticketId)
+    if (!ticket || ticket.estado !== 'abierto') return null
+
+    const dia = aDiaLocal()
+    const numero = ticket.numero ?? (await reservarNumero(dia))
+    const total = totalLineas(ticket.lineas)
+
+    // Si al final todos pagaron igual, se guarda como un cobro normal
+    const metodos = new Set(pagos.map((p) => p.metodo))
+    const unicoMetodo = metodos.size === 1 ? [...metodos][0] : null
+
+    const cambios = {
+      numero,
+      estado: 'cobrado' as const,
+      metodoPago: unicoMetodo ?? ('efectivo' as MetodoPago),
+      pagos: unicoMetodo ? undefined : pagos,
+      total,
+      recibido: null,
+      cambio: null,
+      cerradoEn: Date.now(),
+      dia,
+    }
+    await db.tickets.update(ticketId, cambios)
+    return { ...ticket, ...cambios }
+  })
+}
+
+/** Lo que se lleva una persona de la cuenta: cuántas unidades de cada línea */
+export type Seleccion = { indice: number; cantidad: number }[]
+
+/**
+ * Cobra solo una parte de la comanda: lo que ha consumido esa persona.
+ *
+ * Esas líneas salen de la mesa y forman su propio ticket cobrado, con su
+ * número. Lo que queda sigue abierto para los demás. Si no queda nada, la mesa
+ * se libera.
+ */
+export async function cobrarLoSuyo(
+  ticketId: number,
+  seleccion: Seleccion,
+  metodoPago: Exclude<MetodoPago, 'cuenta'>,
+  recibido: number | null,
+): Promise<Ticket | null> {
+  return db.transaction('rw', db.tickets, db.ajustes, async () => {
+    const ticket = await db.tickets.get(ticketId)
+    if (!ticket || ticket.estado !== 'abierto') return null
+
+    const quedan = ticket.lineas.map((l) => ({ ...l }))
+    const seLleva: LineaTicket[] = []
+
+    for (const { indice, cantidad } of seleccion) {
+      const linea = quedan[indice]
+      if (!linea || cantidad <= 0) continue
+
+      const unidades = Math.min(cantidad, linea.cantidad)
+      seLleva.push({ ...linea, cantidad: unidades })
+      linea.cantidad -= unidades
+    }
+
+    if (seLleva.length === 0) return null
+
+    const dia = aDiaLocal()
+    const numero = await reservarNumero(dia)
+    const total = totalLineas(seLleva)
+
+    const suyo: Omit<Ticket, 'id'> = {
+      numero,
+      mesaId: null,
+      mesaNombre: ticket.mesaNombre,
+      clienteId: null,
+      clienteNombre: null,
+      lineas: seLleva,
+      estado: 'cobrado',
+      abiertoEn: ticket.abiertoEn,
+      cerradoEn: Date.now(),
+      metodoPago,
+      total,
+      recibido: metodoPago === 'efectivo' ? recibido : null,
+      cambio: metodoPago === 'efectivo' && recibido !== null ? recibido - total : null,
+      facturaId: null,
+      dia,
+      nota: '',
+    }
+
+    const nuevoId = (await db.tickets.add(suyo as Ticket)) as number
+
+    // Lo que sobra se queda en la mesa; si no sobra nada, la mesa queda libre
+    const restantes = quedan.filter((l) => l.cantidad > 0)
+    if (restantes.length === 0) {
+      await db.tickets.delete(ticketId)
+    } else {
+      await db.tickets.update(ticketId, {
+        lineas: restantes,
+        total: totalLineas(restantes),
+      })
+    }
+
+    return { ...suyo, id: nuevoId }
   })
 }
 

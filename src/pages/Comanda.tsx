@@ -14,15 +14,19 @@ import {
 } from '../lib/dinero'
 import { imprimirTicket } from '../lib/ticket'
 import { abrirCajonComoToque } from '../lib/cajon'
+import { CobrarSeparado } from './CobrarSeparado'
 import {
   anadirLineaLibre,
   anadirProducto,
   anularTicket,
   apuntarACuenta,
   cambiarCantidad,
+  cobrarLoSuyo,
   cobrarTicket,
+  cobrarTicketRepartido,
   moverTicket,
   quitarLinea,
+  type Seleccion,
 } from '../lib/acciones'
 
 export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () => void }) {
@@ -39,7 +43,9 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
   const [categoriaActiva, setCategoriaActiva] = useState<number | null>(null)
   const [busqueda, setBusqueda] = useState('')
   const [buscando, setBuscando] = useState(false)
-  const [modal, setModal] = useState<'cobro' | 'cuenta' | 'libre' | 'mover' | null>(null)
+  const [modal, setModal] = useState<'cobro' | 'cuenta' | 'libre' | 'mover' | 'separar' | null>(null)
+  // Lo que se lleva la persona a la que se está cobrando su parte
+  const [parte, setParte] = useState<{ seleccion: Seleccion; total: number } | null>(null)
 
   const cerrarBusqueda = () => {
     setBusqueda('')
@@ -290,6 +296,7 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
         total={ticket.total}
         imprimir={ajustes?.imprimirAlCobrar === 1}
         onCambiarImprimir={(valor) => db.ajustes.update(1, { imprimirAlCobrar: valor ? 1 : 0 })}
+        onSepararCuenta={() => setModal('separar')}
         onCerrar={() => setModal(null)}
         onCobrar={async (metodo, recibido) => {
           const cobrado = await cobrarTicket(ticketId, metodo, recibido)
@@ -304,6 +311,48 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
 
           setModal(null)
           onSalir()
+        }}
+      />
+
+      <CobrarSeparado
+        abierto={modal === 'separar'}
+        ticket={ticket}
+        onCerrar={() => setModal(null)}
+        onCobrarIguales={async (pagos) => {
+          const cobrado = await cobrarTicketRepartido(ticketId, pagos)
+          if (cobrado && ajustes?.imprimirAlCobrar === 1) imprimirTicket(cobrado, ajustes)
+          // Si alguien pagó en efectivo, hay que dar cambio
+          if (pagos.some((p) => p.metodo === 'efectivo') && ajustes?.abrirCajonAlCobrar === 1) {
+            abrirCajonComoToque(ajustes).catch(() => {})
+          }
+          setModal(null)
+          onSalir()
+        }}
+        onCobrarLoSuyo={(seleccion, total) => {
+          setParte({ seleccion, total })
+          setModal(null)
+        }}
+      />
+
+      {/* El cobro de la parte de una persona reutiliza la misma pantalla de cobro */}
+      <ModalCobro
+        abierto={parte !== null}
+        total={parte?.total ?? 0}
+        imprimir={ajustes?.imprimirAlCobrar === 1}
+        onCambiarImprimir={(valor) => db.ajustes.update(1, { imprimirAlCobrar: valor ? 1 : 0 })}
+        onCerrar={() => setParte(null)}
+        onCobrar={async (metodo, recibido) => {
+          if (!parte) return
+          const suyo = await cobrarLoSuyo(ticketId, parte.seleccion, metodo, recibido)
+          if (suyo && ajustes?.imprimirAlCobrar === 1) imprimirTicket(suyo, ajustes)
+          if (metodo === 'efectivo' && ajustes?.abrirCajonAlCobrar === 1) {
+            abrirCajonComoToque(ajustes).catch(() => {})
+          }
+          setParte(null)
+
+          // Si ya no queda nada en la mesa, se vuelve a la lista de mesas
+          const queda = await db.tickets.get(ticketId)
+          if (!queda) onSalir()
         }}
       />
 
@@ -401,6 +450,7 @@ function ModalCobro({
   total,
   imprimir,
   onCambiarImprimir,
+  onSepararCuenta,
   onCerrar,
   onCobrar,
 }: {
@@ -408,6 +458,8 @@ function ModalCobro({
   total: number
   imprimir: boolean
   onCambiarImprimir: (valor: boolean) => void
+  /** Solo en el cobro de la mesa entera, no al cobrar la parte de alguien */
+  onSepararCuenta?: () => void
   onCerrar: () => void
   onCobrar: (metodo: 'efectivo' | 'tarjeta', recibido: number | null) => void
 }) {
@@ -515,6 +567,18 @@ function ModalCobro({
           >
             Cobrar con tarjeta
           </Boton>
+
+          {onSepararCuenta && (
+            <Boton
+              tono="neutro"
+              onClick={() => {
+                setTexto('')
+                onSepararCuenta()
+              }}
+            >
+              Cobrar por separado…
+            </Boton>
+          )}
         </div>
 
         {/* ----------------------------- El teclado ----------------------------- */}

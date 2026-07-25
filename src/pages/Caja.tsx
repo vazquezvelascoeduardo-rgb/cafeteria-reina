@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { db } from '../db'
 import { BarraAcciones, Boton, Campo, Entrada, Etiqueta, Importe, Tarjeta, Vacio } from '../components/ui'
 import { Calendario } from '../components/Calendario'
-import { eurosACentimos, formatearEuros } from '../lib/dinero'
+import { desglosePago, eurosACentimos, formatearEuros } from '../lib/dinero'
 import { aDiaLocal, aMesLocal, formatearDia, formatearHora, rangoDeMes } from '../lib/fechas'
 import { reabrirTicket } from '../lib/acciones'
 import { descargar, generarHojas } from '../lib/exportar'
@@ -31,11 +31,20 @@ export function Caja() {
     importesPorDia.set(t.dia, (importesPorDia.get(t.dia) ?? 0) + t.total)
   }
 
-  const cobrados = tickets.filter((t) => t.estado === 'cobrado')
   const aCuenta = tickets.filter((t) => t.estado === 'a_cuenta')
 
-  const efectivo = cobrados.filter((t) => t.metodoPago === 'efectivo').reduce((s, t) => s + t.total, 0)
-  const tarjeta = cobrados.filter((t) => t.metodoPago === 'tarjeta').reduce((s, t) => s + t.total, 0)
+  const caja = tickets.reduce(
+    (suma, t) => {
+      const d = desglosePago(t)
+      return {
+        efectivo: suma.efectivo + d.efectivo,
+        tarjeta: suma.tarjeta + d.tarjeta,
+      }
+    },
+    { efectivo: 0, tarjeta: 0 },
+  )
+  const efectivo = caja.efectivo
+  const tarjeta = caja.tarjeta
   const pendiente = aCuenta.reduce((s, t) => s + t.total, 0)
 
   const contadoCentimos = eurosACentimos(contado)
@@ -197,10 +206,16 @@ export function Caja() {
                       </td>
                       <td className="px-4 py-2.5 font-semibold text-cafe-900">{t.mesaNombre}</td>
                       <td className="px-4 py-2.5">
-                        {t.metodoPago === 'efectivo' && <Etiqueta tono="verde">Efectivo</Etiqueta>}
-                        {t.metodoPago === 'tarjeta' && <Etiqueta tono="azul">Tarjeta</Etiqueta>}
-                        {t.metodoPago === 'cuenta' && (
-                          <Etiqueta tono="ambar">A cuenta · {t.clienteNombre}</Etiqueta>
+                        {t.pagos && t.pagos.length > 0 ? (
+                          <Etiqueta tono="neutro">Dividido</Etiqueta>
+                        ) : (
+                          <>
+                            {t.metodoPago === 'efectivo' && <Etiqueta tono="verde">Efectivo</Etiqueta>}
+                            {t.metodoPago === 'tarjeta' && <Etiqueta tono="azul">Tarjeta</Etiqueta>}
+                            {t.metodoPago === 'cuenta' && (
+                              <Etiqueta tono="ambar">A cuenta · {t.clienteNombre}</Etiqueta>
+                            )}
+                          </>
                         )}
                       </td>
                       <td className="px-4 py-2.5 text-right font-bold tabular-nums">

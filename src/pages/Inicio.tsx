@@ -2,7 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db } from '../db'
 import { Boton, Etiqueta, Tarjeta, Vacio } from '../components/ui'
-import { formatearEuros } from '../lib/dinero'
+import { desglosePago, formatearEuros } from '../lib/dinero'
 import { aDiaLocal, etiquetaDiaCorta, formatearDia, ultimosDias } from '../lib/fechas'
 import { listarCarpetas, ultimaCopia } from '../lib/copiaAutomatica'
 
@@ -51,14 +51,21 @@ export function Inicio({ onIr }: { onIr: (destino: Destino) => void }) {
   const deHoy = ticketsSemana.filter((t) => t.dia === hoy)
   const deAyer = ticketsSemana.filter((t) => t.dia === ayer)
 
-  const cobradoHoy = deHoy
-    .filter((t) => t.estado === 'cobrado')
-    .reduce((s, t) => s + t.total, 0)
-  const efectivoHoy = deHoy
-    .filter((t) => t.metodoPago === 'efectivo')
-    .reduce((s, t) => s + t.total, 0)
-  const tarjetaHoy = deHoy.filter((t) => t.metodoPago === 'tarjeta').reduce((s, t) => s + t.total, 0)
-  const cobradoAyer = deAyer.filter((t) => t.estado === 'cobrado').reduce((s, t) => s + t.total, 0)
+  const sumar = (lista: typeof deHoy) =>
+    lista.reduce(
+      (suma, t) => {
+        const d = desglosePago(t)
+        return { efectivo: suma.efectivo + d.efectivo, tarjeta: suma.tarjeta + d.tarjeta }
+      },
+      { efectivo: 0, tarjeta: 0 },
+    )
+
+  const hoyPorVia = sumar(deHoy)
+  const ayerPorVia = sumar(deAyer)
+  const efectivoHoy = hoyPorVia.efectivo
+  const tarjetaHoy = hoyPorVia.tarjeta
+  const cobradoHoy = efectivoHoy + tarjetaHoy
+  const cobradoAyer = ayerPorVia.efectivo + ayerPorVia.tarjeta
 
   const porDia = new Map<string, number>()
   for (const t of ticketsSemana) porDia.set(t.dia, (porDia.get(t.dia) ?? 0) + t.total)
