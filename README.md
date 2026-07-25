@@ -43,10 +43,33 @@ factura no es válida.
 
 ## Copias de seguridad — importante
 
-Los datos están **solo en este ordenador**. Si se estropea, se pierden.
+Los datos están **solo en este ordenador**. Si se estropea y no hay copia, se pierden.
 
-Una vez por semana: **Ajustes → Copia de seguridad → Descargar copia** y guarda ese archivo
-en un pendrive o mándatelo por correo. Con él se recupera todo en otro ordenador.
+### Lo que hay que hacer una sola vez
+
+**Ajustes → Copia de seguridad → Elegir carpeta para las copias**, y elige una carpeta
+**dentro de OneDrive** (por ejemplo `OneDrive → Documentos → Cafetería`).
+
+A partir de ahí, cada día al abrir la aplicación se guardan solos en esa carpeta:
+
+- `copia-cafeteria-AAAA-MM-DD.json` — la copia completa, la que sirve para restaurar
+- `resumen-por-dias.csv` — ventas de cada día en efectivo, tarjeta y a cuenta
+- `tickets.csv` — todos los tickets con hora, mesa y forma de pago
+- `detalle-de-consumos.csv` — qué se ha consumido, línea a línea
+- `productos-mas-vendidos.csv` — ranking de productos
+- `facturas-emitidas.csv` — todas las facturas con base imponible e IVA
+
+Los `.csv` se abren con Excel de un doble clic. Como la carpeta está en OneDrive, Windows
+sube todo eso a la nube sin que nadie tenga que acordarse.
+
+Requiere abrir la aplicación con **Chrome** o **Edge** (Firefox y Safari no permiten a una
+web escribir en carpetas). Si el navegador pide permiso otra vez tras una actualización,
+basta con entrar en Ajustes y pulsar "Guardar copia ahora".
+
+### Si no se quiere usar la carpeta automática
+
+En la misma pantalla están los botones para descargar a mano la copia de seguridad y las
+hojas de Excel, y guardarlas en un pendrive o mandarlas por correo.
 
 ---
 

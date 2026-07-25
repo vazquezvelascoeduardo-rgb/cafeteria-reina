@@ -140,6 +140,15 @@ export type Ajustes = {
   ivaPorDefecto: number
 }
 
+/**
+ * Almacén de cosas sueltas que no son datos del negocio: la carpeta elegida
+ * para las copias automáticas, el día de la última copia hecha, etc.
+ */
+export type Config = {
+  clave: string
+  valor: unknown
+}
+
 const db = new Dexie('TpvCafeteria') as Dexie & {
   categorias: EntityTable<Categoria, 'id'>
   productos: EntityTable<Producto, 'id'>
@@ -148,6 +157,7 @@ const db = new Dexie('TpvCafeteria') as Dexie & {
   clientes: EntityTable<Cliente, 'id'>
   facturas: EntityTable<Factura, 'id'>
   ajustes: EntityTable<Ajustes, 'id'>
+  config: EntityTable<Config, 'clave'>
 }
 
 db.version(1).stores({
@@ -158,6 +168,10 @@ db.version(1).stores({
   clientes: '++id, nombre',
   facturas: '++id, numero, clienteId, fecha',
   ajustes: 'id',
+})
+
+db.version(2).stores({
+  config: 'clave',
 })
 
 export { db }

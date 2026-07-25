@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { db } from './db'
+import { copiaAutomaticaSiToca } from './lib/copiaAutomatica'
 import { Mesas } from './pages/Mesas'
 import { Comanda } from './pages/Comanda'
 import { Caja } from './pages/Caja'
@@ -28,6 +29,11 @@ export default function App() {
 
   const abiertos = useLiveQuery(() => db.tickets.where('estado').equals('abierto').toArray(), [], [])
   const totalAbierto = abiertos.reduce((s, t) => s + t.total, 0)
+
+  // Copia del día a la carpeta elegida, en cuanto se abre la aplicación
+  useEffect(() => {
+    copiaAutomaticaSiToca()
+  }, [])
 
   const ir = (destino: Vista) => {
     setTicketId(null)

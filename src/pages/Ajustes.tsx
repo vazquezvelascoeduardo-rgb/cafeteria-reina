@@ -1,10 +1,28 @@
 import { useLiveQuery } from 'dexie-react-hooks'
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { db, type Categoria, type DatosEmisor, type Mesa, type Producto } from '../db'
-import { Boton, Campo, Entrada, Modal, Tarjeta, Titulo, Vacio, claseInput } from '../components/ui'
+import {
+  Boton,
+  Campo,
+  Entrada,
+  Etiqueta,
+  Modal,
+  Tarjeta,
+  Titulo,
+  Vacio,
+  claseInput,
+} from '../components/ui'
 import { eurosACentimos, formatearEuros, formatearNumero } from '../lib/dinero'
 import { exportarCopia, importarCopia } from '../lib/acciones'
-import { aDiaLocal } from '../lib/fechas'
+import { descargar, generarHojas } from '../lib/exportar'
+import {
+  copiarAhora,
+  elegirCarpeta,
+  estadoCopia,
+  hayApiDeCarpetas,
+  olvidarCarpeta,
+} from '../lib/copiaAutomatica'
+import { aDiaLocal, formatearDia } from '../lib/fechas'
 
 type Seccion = 'negocio' | 'carta' | 'mesas' | 'copia'
 
@@ -525,17 +543,63 @@ function Mesas() {
 function CopiaSeguridad() {
   const entrada = useRef<HTMLInputElement>(null)
   const [mensaje, setMensaje] = useState('')
+  const [carpeta, setCarpeta] = useState<string | null>(null)
+  const [ultimaCopia, setUltimaCopia] = useState<string | null>(null)
+  const [copiando, setCopiando] = useState(false)
 
-  const descargar = async () => {
+  const soportado = hayApiDeCarpetas()
+
+  const refrescarEstado = async () => {
+    const estado = await estadoCopia()
+    setCarpeta(estado.carpeta)
+    setUltimaCopia(estado.ultimaCopia)
+  }
+
+  useEffect(() => {
+    refrescarEstado()
+  }, [])
+
+  const elegir = async () => {
+    try {
+      const nombre = await elegirCarpeta()
+      if (!nombre) return
+      await refrescarEstado()
+      setMensaje(`Carpeta elegida: ${nombre}. Haciendo la primera copia…`)
+      await copiar()
+    } catch (e) {
+      // Si cierra el diálogo sin elegir nada, no es un error que haya que contar
+      if (e instanceof DOMException && e.name === 'AbortError') return
+      setMensaje(e instanceof Error ? `Error: ${e.message}` : 'No se ha podido elegir la carpeta')
+    }
+  }
+
+  const copiar = async () => {
+    setCopiando(true)
+    try {
+      const { carpeta: nombre, archivos } = await copiarAhora()
+      await refrescarEstado()
+      setMensaje(`Copia guardada en "${nombre}": ${archivos} archivos actualizados.`)
+    } catch (e) {
+      setMensaje(e instanceof Error ? `Error: ${e.message}` : 'No se ha podido guardar la copia')
+    } finally {
+      setCopiando(false)
+    }
+  }
+
+  const descargarJson = async () => {
     const copia = await exportarCopia()
-    const blob = new Blob([JSON.stringify(copia, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const enlace = document.createElement('a')
-    enlace.href = url
-    enlace.download = `copia-cafeteria-${aDiaLocal()}.json`
-    enlace.click()
-    URL.revokeObjectURL(url)
-    setMensaje('Copia descargada. Guárdala en un pendrive o en el correo.')
+    descargar(
+      `copia-cafeteria-${aDiaLocal()}.json`,
+      JSON.stringify(copia, null, 2),
+      'application/json',
+    )
+    setMensaje('Copia descargada a la carpeta de Descargas.')
+  }
+
+  const descargarExcel = async () => {
+    const hojas = await generarHojas()
+    for (const hoja of hojas) descargar(hoja.nombre, hoja.contenido)
+    setMensaje(`Descargados ${hojas.length} archivos de Excel a la carpeta de Descargas.`)
   }
 
   const restaurar = async (archivo: File) => {
@@ -554,25 +618,94 @@ function CopiaSeguridad() {
     }
   }
 
+  const copiaDeHoy = ultimaCopia === aDiaLocal()
+
   return (
     <div className="grid gap-6 lg:grid-cols-2">
+      <Tarjeta className="lg:col-span-2">
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-bold text-cafe-900">Copia automática diaria</h2>
+          {carpeta &&
+            (copiaDeHoy ? (
+              <Etiqueta tono="verde">Copiado hoy</Etiqueta>
+            ) : (
+              <Etiqueta tono="ambar">Pendiente de hoy</Etiqueta>
+            ))}
+        </div>
+
+        {!soportado ? (
+          <p className="text-sm text-cafe-600">
+            Este navegador no permite guardar copias solo. Abre la aplicación con <b>Chrome</b> o{' '}
+            <b>Edge</b> para activarlo, o usa la descarga manual de aquí abajo.
+          </p>
+        ) : carpeta === null ? (
+          <>
+            <p className="mb-4 max-w-3xl text-sm text-cafe-600">
+              Elige una carpeta y la aplicación guardará ahí sola, una vez al día, una copia completa
+              de todo y las hojas de Excel con las ventas.
+              <br />
+              <b>Lo mejor es elegir una carpeta dentro de OneDrive</b> (por ejemplo{' '}
+              <i>OneDrive → Documentos → Cafetería</i>): así Windows sube la copia a la nube por su
+              cuenta y, aunque el ordenador se estropee, los datos siguen estando.
+            </p>
+            <Boton tono="principal" onClick={elegir}>
+              Elegir carpeta para las copias
+            </Boton>
+          </>
+        ) : (
+          <>
+            <p className="mb-4 text-sm text-cafe-600">
+              Guardando en la carpeta <b>{carpeta}</b>.{' '}
+              {ultimaCopia ? `Última copia: ${formatearDia(ultimaCopia)}.` : 'Aún sin copias.'}
+              <br />
+              Cada día, al abrir la aplicación, se guarda sola una copia nueva.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Boton tono="principal" onClick={copiar} disabled={copiando}>
+                {copiando ? 'Guardando…' : 'Guardar copia ahora'}
+              </Boton>
+              <Boton tono="neutro" onClick={elegir}>
+                Cambiar de carpeta
+              </Boton>
+              <Boton
+                tono="neutro"
+                className="!text-red-600"
+                onClick={async () => {
+                  if (!confirm('¿Dejar de hacer copias automáticas?')) return
+                  await olvidarCarpeta()
+                  await refrescarEstado()
+                  setMensaje('Ya no se harán copias automáticas.')
+                }}
+              >
+                Dejar de hacerlas
+              </Boton>
+            </div>
+          </>
+        )}
+      </Tarjeta>
+
       <Tarjeta>
-        <h2 className="mb-1 text-lg font-bold text-cafe-900">Guardar una copia</h2>
+        <h2 className="mb-1 text-lg font-bold text-cafe-900">Descargar a mano</h2>
         <p className="mb-4 text-sm text-cafe-600">
-          Los datos viven dentro de este ordenador. Descarga una copia de vez en cuando (una vez por
-          semana está bien) y guárdala en un pendrive o mándatela por correo. Si el ordenador se
-          estropea, con ese archivo lo recuperas todo.
+          La <b>copia de seguridad</b> es el archivo que sirve para recuperarlo todo. Las{' '}
+          <b>hojas de Excel</b> son para mirar los números o dárselos a la gestoría: ventas por día,
+          tickets, consumos y facturas.
         </p>
-        <Boton tono="principal" onClick={descargar}>
-          Descargar copia de seguridad
-        </Boton>
+        <div className="flex flex-wrap gap-2">
+          <Boton tono="principal" onClick={descargarJson}>
+            Copia de seguridad
+          </Boton>
+          <Boton tono="neutro" onClick={descargarExcel}>
+            Hojas de Excel
+          </Boton>
+        </div>
       </Tarjeta>
 
       <Tarjeta>
         <h2 className="mb-1 text-lg font-bold text-cafe-900">Restaurar una copia</h2>
         <p className="mb-4 text-sm text-cafe-600">
           Solo para cuando cambies de ordenador o hayas perdido los datos. Sustituye todo lo que haya
-          ahora mismo en la app.
+          ahora mismo en la aplicación.
         </p>
         <input
           ref={entrada}
