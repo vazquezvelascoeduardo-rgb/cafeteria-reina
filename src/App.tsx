@@ -44,7 +44,7 @@ export default function App() {
     <div className="flex h-full flex-col">
       <header className="no-imprimir shrink-0 border-b border-cafe-200 bg-white">
         <div className="mx-auto flex max-w-[1600px] items-center gap-2 px-4 py-2">
-          <span className="mr-2 hidden text-lg font-bold text-cafe-800 sm:block">Cafetería</span>
+          <span className="mr-2 hidden text-lg font-bold text-cafe-800 sm:block">Cafetería Reina</span>
 
           <nav className="flex flex-1 gap-1 overflow-x-auto">
             {PESTANAS.map((p) => (

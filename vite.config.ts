@@ -16,9 +16,9 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
-        name: 'TPV Cafetería',
-        short_name: 'Cafetería',
-        description: 'Gestión de mesas, cobros y facturas para cafetería',
+        name: 'Cafetería Reina',
+        short_name: 'Reina',
+        description: 'Gestión de mesas, cobros y facturas de la Cafetería Reina',
         theme_color: '#7c4a2d',
         background_color: '#faf7f2',
         display: 'standalone',
