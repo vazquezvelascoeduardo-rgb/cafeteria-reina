@@ -73,6 +73,29 @@ hojas de Excel, y guardarlas en un pendrive o mandarlas por correo.
 
 ---
 
+## Publicarla en internet (recomendado)
+
+No hace falta dominio propio ni pagar nada. Con una URL gratuita basta, y así la
+aplicación se actualiza sola y se puede instalar también en el móvil.
+
+La forma más rápida, sin instalar nada:
+
+1. `npm run build` en este proyecto.
+2. Entrar en <https://app.netlify.com/drop>.
+3. Arrastrar ahí la carpeta `dist`.
+4. Netlify devuelve una dirección tipo `https://algo-aleatorio.netlify.app`. Desde la cuenta
+   se puede cambiar por algo como `cafeteria-mama.netlify.app`.
+
+En el ordenador de la cafetería: abrir esa dirección con Edge o Chrome y **⋮ → Instalar
+aplicación**. Queda el icono en el escritorio y a partir de ahí funciona aunque se caiga
+internet, porque la primera visita se guarda entera en el ordenador.
+
+> **Importante:** los datos se guardan atados a la dirección desde la que se abre la
+> aplicación. Cambiar de dirección más adelante (de `localhost` a Netlify, por ejemplo)
+> hace que aparezca vacía. Los datos no se pierden, pero hay que pasarlos a mano:
+> **Ajustes → Copia de seguridad → Descargar** en la dirección vieja y **Restaurar** en la
+> nueva. Conviene decidir la dirección definitiva antes de empezar a usarla en serio.
+
 ## Para el desarrollador
 
 ```bash
