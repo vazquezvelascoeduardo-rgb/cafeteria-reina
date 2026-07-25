@@ -360,8 +360,8 @@ function BotonProducto({
   return (
     <button
       onClick={onClick}
-      className={`flex h-24 flex-col justify-between rounded-xl border border-borde p-3 text-left transition-all hover:border-oro-medio hover:shadow-[0_8px_18px_rgba(51,32,15,.10)] active:scale-[0.97] ${
-        alterno ? 'bg-[#EFEBE4]' : 'bg-white'
+      className={`flex h-24 flex-col justify-between rounded-xl border p-3 text-left transition-all hover:border-oro-medio hover:shadow-[0_8px_18px_rgba(51,32,15,.10)] active:scale-[0.97] ${
+        alterno ? 'border-cafe-400 bg-cafe-300' : 'border-borde bg-white'
       }`}
     >
       <span className="line-clamp-2 text-[14.5px] leading-tight font-bold">{producto.nombre}</span>
