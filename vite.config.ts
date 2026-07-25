@@ -3,7 +3,12 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { VitePWA } from 'vite-plugin-pwa'
 
+// En GitHub Pages la aplicación no cuelga de la raíz del dominio, sino de
+// /nombre-del-repositorio/. El workflow de publicación pasa esa ruta aquí.
+const base = process.env.BASE_PATH ?? '/'
+
 export default defineConfig({
+  base,
   plugins: [
     react(),
     tailwindcss(),
@@ -18,7 +23,10 @@ export default defineConfig({
         background_color: '#faf7f2',
         display: 'standalone',
         orientation: 'any',
-        start_url: '/',
+        // Relativas al propio manifiesto: así valen tanto si la aplicación
+        // cuelga de la raíz como de un subdirectorio
+        start_url: './',
+        scope: './',
         lang: 'es',
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
