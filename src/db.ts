@@ -159,6 +159,12 @@ export type Ajustes = {
   mostrarLogoTicket: number
   /** 1 = al cobrar sale el ticket solo, 0 = solo si se pide */
   imprimirAlCobrar: number
+
+  // --- Cajón portamonedas ---
+  /** 1 = el cajón se abre solo al cobrar en efectivo */
+  abrirCajonAlCobrar: number
+  /** Velocidad del puerto de la impresora. Casi todas van a 9600 */
+  baudiosCajon: number
 }
 
 /**
@@ -386,6 +392,8 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   logoTicket: '',
   mostrarLogoTicket: 1,
   imprimirAlCobrar: 0,
+  abrirCajonAlCobrar: 1,
+  baudiosCajon: 9600,
 }
 
 /** Vuelca la carta de arriba en la base de datos, sustituyendo la que hubiera */

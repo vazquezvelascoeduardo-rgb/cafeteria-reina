@@ -12,6 +12,7 @@ import {
   totalLinea,
 } from '../lib/dinero'
 import { imprimirTicket } from '../lib/ticket'
+import { abrirCajon } from '../lib/cajon'
 import {
   anadirLineaLibre,
   anadirProducto,
@@ -100,14 +101,17 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
           ) : (
             <>
               <div className="flex min-w-0 flex-1 flex-wrap gap-2">
+                {/* Todas las categorías van en el marrón de la casa, para que no
+                    se confundan con los productos ni un segundo. La que está
+                    puesta se marca en dorado. */}
                 {categorias.map((c) => (
                   <button
                     key={c.id}
                     onClick={() => setCategoriaActiva(c.id!)}
                     className={`min-w-[112px] flex-1 rounded-xl px-2.5 py-3.5 text-[15px] leading-tight font-bold transition-colors ${
                       c.id === categoriaMostrada
-                        ? 'bg-cafe-800 text-marfil'
-                        : 'border border-borde bg-white text-cafe-600 hover:border-oro-medio hover:bg-cafe-100'
+                        ? 'bg-oro text-cafe-900 shadow-[inset_0_0_0_2px_var(--color-cafe-800)]'
+                        : 'bg-cafe-800 text-marfil hover:bg-cafe-700'
                     }`}
                   >
                     {c.nombre}
@@ -127,10 +131,11 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
         </div>
 
         <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-y-auto pb-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-          {visibles.map((p) => (
+          {visibles.map((p, i) => (
             <BotonProducto
               key={p.id}
               producto={p}
+              alterno={i % 2 === 1}
               unidades={ticket.lineas
                 .filter((l) => l.productoId === p.id)
                 .reduce((s, l) => s + l.cantidad, 0)}
@@ -274,6 +279,14 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
         onCobrar={async (metodo, recibido) => {
           const cobrado = await cobrarTicket(ticketId, metodo, recibido)
           if (cobrado && ajustes?.imprimirAlCobrar === 1) imprimirTicket(cobrado, ajustes)
+
+          // El cajón solo se abre con el efectivo: con tarjeta no hay que dar cambio
+          if (metodo === 'efectivo' && ajustes?.abrirCajonAlCobrar === 1) {
+            abrirCajon(ajustes.baudiosCajon).catch(() => {
+              // Que el cajón falle no puede dejar la venta a medias
+            })
+          }
+
           setModal(null)
           onSalir()
         }}
@@ -335,16 +348,21 @@ function IconoLupa() {
 function BotonProducto({
   producto,
   unidades,
+  alterno,
   onClick,
 }: {
   producto: Producto
   unidades: number
+  /** Los productos van alternando color, para no confundir uno con el de al lado */
+  alterno: boolean
   onClick: () => void
 }) {
   return (
     <button
       onClick={onClick}
-      className="flex h-24 flex-col justify-between rounded-xl border border-borde bg-white p-3 text-left transition-all hover:border-oro-medio hover:shadow-[0_8px_18px_rgba(51,32,15,.10)] active:scale-[0.97]"
+      className={`flex h-24 flex-col justify-between rounded-xl border border-borde p-3 text-left transition-all hover:border-oro-medio hover:shadow-[0_8px_18px_rgba(51,32,15,.10)] active:scale-[0.97] ${
+        alterno ? 'bg-[#EFEBE4]' : 'bg-white'
+      }`}
     >
       <span className="line-clamp-2 text-[14.5px] leading-tight font-bold">{producto.nombre}</span>
       <span className="flex items-end justify-between">

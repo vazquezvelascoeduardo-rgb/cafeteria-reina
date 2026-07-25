@@ -1,6 +1,21 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
-import { db, type Categoria, type DatosEmisor, type Mesa, type Producto, type Ticket } from '../db'
+import {
+  db,
+  type Ajustes as AjustesTipo,
+  type Categoria,
+  type DatosEmisor,
+  type Mesa,
+  type Producto,
+  type Ticket,
+} from '../db'
+import {
+  abrirCajon,
+  conectarCajon,
+  estadoCajon,
+  haySoporteCajon,
+  olvidarCajon,
+} from '../lib/cajon'
 import { Logo } from '../components/Logo'
 import { prepararLogo } from '../lib/imagen'
 import { imprimirTicket } from '../lib/ticket'
@@ -574,6 +589,130 @@ function Mesas() {
 
 // ---------------------------------------------------------------------------
 
+function CajonPortamonedas({ ajustes }: { ajustes: AjustesTipo }) {
+  const [estado, setEstado] = useState({ configurado: false, disponible: false })
+  const [mensaje, setMensaje] = useState('')
+  const [probando, setProbando] = useState(false)
+
+  const soportado = haySoporteCajon()
+
+  const refrescar = async () => setEstado(await estadoCajon())
+
+  useEffect(() => {
+    refrescar()
+  }, [])
+
+  const conectar = async () => {
+    setMensaje('')
+    try {
+      if (await conectarCajon()) {
+        await refrescar()
+        setMensaje('Impresora elegida. Prueba a abrir el cajón para comprobarlo.')
+      }
+    } catch (e) {
+      // Cerrar el diálogo sin elegir nada no es un fallo que haya que contar
+      if (e instanceof DOMException && e.name === 'NotFoundError') return
+      setMensaje(e instanceof Error ? e.message : 'No se ha podido conectar')
+    }
+  }
+
+  const probar = async () => {
+    setProbando(true)
+    setMensaje('')
+    try {
+      await abrirCajon(ajustes.baudiosCajon)
+      setMensaje('Pulso enviado. El cajón debería haberse abierto.')
+    } catch (e) {
+      setMensaje(e instanceof Error ? e.message : 'No se ha podido abrir el cajón')
+    } finally {
+      setProbando(false)
+    }
+  }
+
+  return (
+    <Tarjeta>
+      <div className="mb-1 flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-bold text-cafe-900">Cajón del dinero</h2>
+        {estado.configurado &&
+          (estado.disponible ? (
+            <Etiqueta tono="verde">Conectado</Etiqueta>
+          ) : (
+            <Etiqueta tono="ambar">No se encuentra</Etiqueta>
+          ))}
+      </div>
+
+      {!soportado ? (
+        <p className="text-sm text-cafe-600">
+          Este navegador no puede hablar con el cajón. Abre la aplicación con <b>Chrome</b> o{' '}
+          <b>Edge</b> en el ordenador.
+        </p>
+      ) : (
+        <>
+          <p className="mb-4 text-sm text-cafe-600">
+            El cajón no se enchufa al ordenador, sino a la impresora de tickets con un cable de
+            teléfono. Elige aquí la impresora y la aplicación le mandará la orden de abrirlo cuando
+            cobres en efectivo.
+          </p>
+
+          <label className="mb-3 flex cursor-pointer items-center gap-3 rounded-xl bg-cafe-100 px-4 py-3">
+            <input
+              type="checkbox"
+              checked={ajustes.abrirCajonAlCobrar === 1}
+              onChange={(e) => db.ajustes.update(1, { abrirCajonAlCobrar: e.target.checked ? 1 : 0 })}
+              className="h-5 w-5 accent-cafe-800"
+            />
+            <span className="text-sm font-bold text-cafe-800">
+              Abrir el cajón al cobrar en efectivo
+            </span>
+          </label>
+
+          <Campo etiqueta="Velocidad del puerto" ayuda="Casi todas las impresoras van a 9600" className="mb-4">
+            <select
+              value={ajustes.baudiosCajon}
+              onChange={(e) => db.ajustes.update(1, { baudiosCajon: Number(e.target.value) })}
+              className={claseInput}
+            >
+              {[9600, 19200, 38400, 57600, 115200].map((b) => (
+                <option key={b} value={b}>
+                  {b}
+                </option>
+              ))}
+            </select>
+          </Campo>
+
+          <div className="flex flex-wrap gap-2">
+            <Boton tono="principal" onClick={conectar}>
+              {estado.configurado ? 'Elegir otra impresora' : 'Conectar el cajón'}
+            </Boton>
+            <Boton tono="neutro" onClick={probar} disabled={!estado.configurado || probando}>
+              {probando ? 'Abriendo…' : 'Abrir el cajón ahora'}
+            </Boton>
+            {estado.configurado && (
+              <Boton
+                tono="neutro"
+                className="!text-anular"
+                onClick={async () => {
+                  await olvidarCajon()
+                  await refrescar()
+                  setMensaje('')
+                }}
+              >
+                Quitar
+              </Boton>
+            )}
+          </div>
+
+          {mensaje && (
+            <p className="mt-3 rounded-xl bg-cafe-100 px-4 py-3 text-sm font-semibold text-cafe-700">
+              {mensaje}
+            </p>
+          )}
+        </>
+      )}
+    </Tarjeta>
+  )
+}
+
 /**
  * Deja elegir por qué número empieza a contar la numeración.
  *
@@ -859,6 +998,8 @@ function Impresora() {
           />
         </div>
       </Tarjeta>
+
+      <CajonPortamonedas ajustes={ajustes} />
 
       <Tarjeta>
         <h2 className="mb-1 text-lg font-bold text-cafe-900">Para que no pregunte cada vez</h2>

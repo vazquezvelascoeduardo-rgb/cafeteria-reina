@@ -8,6 +8,7 @@ import { aDiaLocal, aMesLocal, formatearDia, formatearHora, rangoDeMes } from '.
 import { reabrirTicket } from '../lib/acciones'
 import { descargar, generarHojas } from '../lib/exportar'
 import { imprimirTicket } from '../lib/ticket'
+import { abrirCajon, haySoporteCajon } from '../lib/cajon'
 
 export function Caja() {
   const [mes, setMes] = useState(() => aMesLocal())
@@ -52,8 +53,8 @@ export function Caja() {
 
   return (
     <div>
-      {!esHoy && (
-        <BarraAcciones>
+      <BarraAcciones>
+        {!esHoy && (
           <Boton
             tono="neutro"
             onClick={() => {
@@ -64,8 +65,20 @@ export function Caja() {
           >
             ← Volver a hoy
           </Boton>
-        </BarraAcciones>
-      )}
+        )}
+        {ajustes && haySoporteCajon() && (
+          <Boton
+            tono="neutro"
+            onClick={() =>
+              abrirCajon(ajustes.baudiosCajon).catch((e) =>
+                alert(e instanceof Error ? e.message : 'No se ha podido abrir el cajón'),
+              )
+            }
+          >
+            Abrir el cajón
+          </Boton>
+        )}
+      </BarraAcciones>
 
       {esHoy && abiertos.length > 0 && (
         <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900">
