@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db, type Cliente } from '../db'
-import { Boton, Campo, Entrada, Etiqueta, Modal, Tarjeta, Titulo, Vacio } from '../components/ui'
+import { BarraAcciones, Boton, Campo, Entrada, Etiqueta, Modal, Tarjeta, Vacio } from '../components/ui'
 import { formatearEuros } from '../lib/dinero'
 import { formatearDia } from '../lib/fechas'
 
@@ -36,15 +36,11 @@ export function Clientes({ onFacturar }: { onFacturar: (clienteId: number) => vo
 
   return (
     <div>
-      <Titulo
-        extra={
-          <Boton tono="principal" onClick={() => setEditando({ ...CLIENTE_VACIO })}>
-            + Nuevo cliente
-          </Boton>
-        }
-      >
-        Clientes a cuenta
-      </Titulo>
+      <BarraAcciones>
+        <Boton tono="principal" onClick={() => setEditando({ ...CLIENTE_VACIO })}>
+          + Nuevo cliente
+        </Boton>
+      </BarraAcciones>
 
       <p className="mb-5 max-w-3xl text-cafe-600">
         Aquí van los clientes que no pagan en el momento, sino que consumen a cuenta y luego reciben una

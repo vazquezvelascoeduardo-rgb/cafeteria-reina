@@ -180,61 +180,151 @@ export { db }
 // Datos de arranque: una carta típica de cafetería, para que no empiece vacío
 // ---------------------------------------------------------------------------
 
-const CATEGORIAS_INICIALES: Omit<Categoria, 'id'>[] = [
-  { nombre: 'Cafés e infusiones', color: '#7c4a2d', orden: 1 },
-  { nombre: 'Refrescos y zumos', color: '#c2410c', orden: 2 },
-  { nombre: 'Cervezas y vinos', color: '#a16207', orden: 3 },
-  { nombre: 'Bocadillos', color: '#4d7c0f', orden: 4 },
-  { nombre: 'Tapas y raciones', color: '#0f766e', orden: 5 },
-  { nombre: 'Bollería y postres', color: '#9d174d', orden: 6 },
-]
+/**
+ * La carta real de la Cafetería Reina.
+ *
+ * Al subir este número se sustituye la carta guardada por esta, una sola vez.
+ * Los tickets ya cobrados no se tocan: cada línea guarda su propio nombre y
+ * precio, así que el histórico y las facturas siguen siendo fieles.
+ */
+const VERSION_CARTA = 2
 
-/** [nombre, precio en euros, índice de categoría (0..5)] */
-const PRODUCTOS_INICIALES: [string, number, number][] = [
-  ['Café solo', 1.3, 0],
-  ['Cortado', 1.4, 0],
-  ['Café con leche', 1.6, 0],
-  ['Café doble', 1.8, 0],
-  ['Descafeinado', 1.6, 0],
-  ['Carajillo', 2.2, 0],
-  ['Colacao', 1.8, 0],
-  ['Té / Infusión', 1.6, 0],
-  ['Leche vaso', 1.4, 0],
+/** El IVA de hostelería. El pan común va aparte, al 4 % */
+const IVA = 10
 
-  ['Agua pequeña', 1.2, 1],
-  ['Agua grande', 1.8, 1],
-  ['Refresco lata', 2.0, 1],
-  ['Zumo natural', 2.8, 1],
-  ['Zumo botella', 2.0, 1],
-  ['Bitter / Tónica', 2.2, 1],
+type ProductoInicial = [nombre: string, euros: number, iva?: number]
 
-  ['Caña', 1.8, 2],
-  ['Doble', 2.6, 2],
-  ['Quinto', 2.0, 2],
-  ['Cerveza sin', 2.0, 2],
-  ['Copa de vino', 2.2, 2],
-  ['Vermut', 2.8, 2],
-
-  ['Bocadillo tortilla', 3.5, 3],
-  ['Bocadillo jamón', 4.5, 3],
-  ['Bocadillo lomo', 4.2, 3],
-  ['Bocadillo queso', 3.8, 3],
-  ['Pulguita', 2.5, 3],
-  ['Tostada con tomate', 2.5, 3],
-
-  ['Tortilla de patatas', 3.0, 4],
-  ['Patatas bravas', 4.5, 4],
-  ['Croquetas', 5.0, 4],
-  ['Ensaladilla', 4.5, 4],
-  ['Aceitunas', 2.0, 4],
-  ['Tabla de ibéricos', 9.0, 4],
-
-  ['Croissant', 1.8, 5],
-  ['Napolitana', 1.9, 5],
-  ['Palmera', 2.0, 5],
-  ['Tarta de queso', 3.5, 5],
-  ['Flan', 3.0, 5],
-  ['Helado', 3.0, 5],
+const CARTA: { categoria: string; productos: ProductoInicial[] }[] = [
+  {
+    categoria: 'Cafetería',
+    productos: [
+      ['Café', 1.3],
+      ['Cortado', 1.5],
+      ['Café con leche', 1.7],
+      ['Café americano', 1.3],
+      ['Café bombón', 1.7],
+      ['Leche con Colacao', 1.7],
+      ['Chocolate', 2.3],
+      ['Té', 2.0],
+      ['Té con leche', 2.5],
+      ['Carajillo', 2.0],
+      ['Carajillo de whisky', 2.5],
+      ['Trifásico', 2.0],
+      ['Trifásico de whisky', 2.5],
+    ],
+  },
+  {
+    categoria: 'Bollería',
+    productos: [
+      ['Cruasán', 1.6],
+      ['Cruasán de chocolate', 2.0],
+      ['Cruasán de cereales', 2.0],
+      ['Cruasán de mantequilla', 1.6],
+      ['Cruasán de jamón y queso planchado', 2.5],
+      ['Magdalena', 2.0],
+      ['Dónut normal', 1.6],
+      ['Dónut grande', 2.0],
+      ['Dónut de chocolate de colores', 1.6],
+      ['Berlina', 2.0],
+      ['Bola de dónut de coco', 0.65],
+      ['Bola de chocolate', 0.65],
+      ['Crusán pequeño', 0.5],
+      ['Crusán pequeño de chocolate', 0.65],
+      ['Crusán de cereales', 0.65],
+      ['Chucho', 3.0],
+    ],
+  },
+  {
+    categoria: 'Pan',
+    productos: [
+      // El pan común tributa al 4 %; los panes especiales, al 10 %
+      ['Baguette Supreme', 1.0, 4],
+      ['Barra pagesa', 1.3, 4],
+      ['Gran rústic', 1.7, 4],
+      ['Integral', 1.6, 4],
+      ['Pagés redondo 1 kg', 3.5, 4],
+      ['Pagés redondo medio', 2.6, 4],
+      ['Viña 5 cereales', 1.7, 10],
+      ['Chía redondo 0,5 kg', 4.2, 10],
+      ['Cuarto de chía', 2.6, 10],
+      ['Chía cuadrado', 10.0, 10],
+      ['Redondo de espelta 0,5 kg', 4.2, 10],
+      ['Cuarto de espelta', 2.6, 10],
+      ['Pan de nueces', 1.25, 10],
+      ['Pan de molde', 3.0, 10],
+    ],
+  },
+  {
+    categoria: 'Bocadillos y platos',
+    productos: [
+      ['Bocadillo caliente', 5.0],
+      ['Medio bocadillo caliente', 3.5],
+      ['Bocadillo frío', 4.0],
+      ['Medio bocadillo frío', 2.5],
+      ['Viena redondo', 2.5],
+      ['Pulga 2 cortes', 2.0],
+      ['Mini pulga', 1.5],
+      ['Plato', 5.0],
+      ['Medio plato', 3.0],
+    ],
+  },
+  {
+    categoria: 'Cervezas y vinos',
+    productos: [
+      ['Mediana Estrella', 2.2],
+      ['Quinto Estrella', 1.9],
+      ['Quinto San Miguel', 1.9],
+      ['Quinto sin alcohol', 1.9],
+      ['Voll-Damm mediana', 2.4],
+      ['Lemon cerveza', 2.2],
+      ['Cerveza en lata', 2.2],
+      ['Vino de mesa', 2.0],
+      ['Vino bueno', 3.0],
+    ],
+  },
+  {
+    categoria: 'Refrescos y aguas',
+    productos: [
+      ['Coca-Cola', 2.0],
+      ['Fanta', 2.0],
+      ['Aquarius', 2.0],
+      ['Nestea', 2.0],
+      ['Tónica', 2.0],
+      ['Bitter', 2.0],
+      ['Cacaolat', 2.0],
+      ['Zumo', 2.0],
+      ['Agua 1,5 l', 1.7],
+      ['Agua pequeña', 1.2],
+      ['Agua con gas', 2.0],
+    ],
+  },
+  {
+    categoria: 'Copas y licores',
+    productos: [
+      ['María · copa', 2.0],
+      ['María · tubo', 3.0],
+      ['Pacharán · copa', 2.0],
+      ['Pacharán · tubo', 3.0],
+      ['Coñac · copa', 2.0],
+      ['Coñac · tubo', 3.0],
+      ['Anís · copa', 2.0],
+      ['Anís · tubo', 3.0],
+      ['JB · copa', 2.5],
+      ['JB · tubo', 3.5],
+      ["Ballantine's · copa", 2.5],
+      ["Ballantine's · tubo", 3.5],
+      ['Baileys · copa', 2.5],
+      ['Baileys · tubo', 3.5],
+    ],
+  },
+  {
+    categoria: 'Suplementos',
+    productos: [
+      ['+ Avena', 0.1],
+      ['+ Hielo', 0.1],
+      ['+ Queso', 0.5],
+    ],
+  },
 ]
 
 const MESAS_INICIALES: Omit<Mesa, 'id'>[] = [
@@ -269,22 +359,41 @@ export const AJUSTES_POR_DEFECTO: Ajustes = {
   ivaPorDefecto: 10,
 }
 
+/** Vuelca la carta de arriba en la base de datos, sustituyendo la que hubiera */
+async function instalarCarta() {
+  await db.transaction('rw', db.categorias, db.productos, db.config, async () => {
+    await db.categorias.clear()
+    await db.productos.clear()
+
+    let orden = 0
+    for (const [i, grupo] of CARTA.entries()) {
+      const categoriaId = (await db.categorias.add({
+        nombre: grupo.categoria,
+        color: '#a9762a',
+        orden: i + 1,
+      })) as number
+
+      await db.productos.bulkAdd(
+        grupo.productos.map(([nombre, euros, iva]) => ({
+          nombre,
+          precio: Math.round(euros * 100),
+          categoriaId,
+          iva: iva ?? IVA,
+          activo: 1,
+          orden: ++orden,
+        })),
+      )
+    }
+
+    await db.config.put({ clave: 'versionCarta', valor: VERSION_CARTA })
+  })
+}
+
 /** Crea la carta, las mesas y los ajustes la primera vez que se abre la app */
 export async function inicializarDatos() {
-  const yaHayCategorias = await db.categorias.count()
-
-  if (yaHayCategorias === 0) {
-    const ids = await db.categorias.bulkAdd(CATEGORIAS_INICIALES, { allKeys: true })
-    await db.productos.bulkAdd(
-      PRODUCTOS_INICIALES.map(([nombre, euros, cat], i) => ({
-        nombre,
-        precio: Math.round(euros * 100),
-        categoriaId: ids[cat] as number,
-        iva: 10,
-        activo: 1,
-        orden: i + 1,
-      })),
-    )
+  const version = (await db.config.get('versionCarta'))?.valor
+  if (version !== VERSION_CARTA) {
+    await instalarCarta()
   }
 
   if ((await db.mesas.count()) === 0) {

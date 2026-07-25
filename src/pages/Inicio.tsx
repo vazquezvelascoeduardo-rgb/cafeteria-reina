@@ -82,17 +82,7 @@ export function Inicio({ onIr }: { onIr: (destino: Destino) => void }) {
 
   return (
     <div>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-cafe-900">{saludo()}</h1>
-        <p className="text-cafe-500 first-letter:uppercase">
-          {new Date().toLocaleDateString('es-ES', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            year: 'numeric',
-          })}
-        </p>
-      </div>
+      <h1 className="mb-5 font-serif text-3xl font-semibold">{saludo()}</h1>
 
       {/* ------------------------------ Avisos ------------------------------ */}
       <div className="mb-6 grid gap-3">

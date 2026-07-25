@@ -19,8 +19,8 @@ export default defineConfig({
         name: 'Cafetería Reina',
         short_name: 'Reina',
         description: 'Gestión de mesas, cobros y facturas de la Cafetería Reina',
-        theme_color: '#7c4a2d',
-        background_color: '#faf7f2',
+        theme_color: '#33200f',
+        background_color: '#faf6f0',
         display: 'standalone',
         orientation: 'any',
         // Relativas al propio manifiesto: así valen tanto si la aplicación
@@ -31,7 +31,7 @@ export default defineConfig({
         icons: [
           { src: 'pwa-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'pwa-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'pwa-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+          { src: 'pwa-512-recortable.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
       },
       workbox: {

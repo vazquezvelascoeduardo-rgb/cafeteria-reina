@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db } from '../db'
-import { Tarjeta, Titulo, Vacio, claseInput } from '../components/ui'
+import { BarraAcciones, Tarjeta, Vacio, claseInput } from '../components/ui'
 import { formatearEuros } from '../lib/dinero'
 import { aDiaLocal, etiquetaDiaCorta, formatearDia, nombreMes, ultimosDias } from '../lib/fechas'
 
@@ -86,18 +86,18 @@ export function Informes() {
 
   return (
     <div>
-      <Titulo
-        extra={
-          <select value={rango} onChange={(e) => setRango(e.target.value as Rango)} className={`${claseInput} w-52`}>
-            <option value="7">Últimos 7 días</option>
-            <option value="30">Últimos 30 días</option>
-            <option value="90">Últimos 90 días</option>
-            <option value="todo">Todo el histórico</option>
-          </select>
-        }
-      >
-        Informes
-      </Titulo>
+      <BarraAcciones>
+        <select
+          value={rango}
+          onChange={(e) => setRango(e.target.value as Rango)}
+          className={`${claseInput} w-52`}
+        >
+          <option value="7">Últimos 7 días</option>
+          <option value="30">Últimos 30 días</option>
+          <option value="90">Últimos 90 días</option>
+          <option value="todo">Todo el histórico</option>
+        </select>
+      </BarraAcciones>
 
       {enRango.length === 0 ? (
         <Vacio>

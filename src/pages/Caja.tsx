@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useState } from 'react'
 import { db } from '../db'
-import { Boton, Campo, Entrada, Etiqueta, Tarjeta, Titulo, Vacio } from '../components/ui'
+import { BarraAcciones, Boton, Campo, Entrada, Etiqueta, Importe, Tarjeta, Vacio } from '../components/ui'
 import { Calendario } from '../components/Calendario'
 import { eurosACentimos, formatearEuros } from '../lib/dinero'
 import { aDiaLocal, aMesLocal, formatearDia, formatearHora, rangoDeMes } from '../lib/fechas'
@@ -50,24 +50,20 @@ export function Caja() {
 
   return (
     <div>
-      <Titulo
-        extra={
-          !esHoy && (
-            <Boton
-              tono="suave"
-              onClick={() => {
-                setDia(aDiaLocal())
-                setMes(aMesLocal())
-                setContado('')
-              }}
-            >
-              Volver a hoy
-            </Boton>
-          )
-        }
-      >
-        Caja
-      </Titulo>
+      {!esHoy && (
+        <BarraAcciones>
+          <Boton
+            tono="neutro"
+            onClick={() => {
+              setDia(aDiaLocal())
+              setMes(aMesLocal())
+              setContado('')
+            }}
+          >
+            ← Volver a hoy
+          </Boton>
+        </BarraAcciones>
+      )}
 
       {esHoy && abiertos.length > 0 && (
         <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900">
@@ -148,7 +144,7 @@ export function Caja() {
         </div>
 
         <div>
-          <h2 className="mb-4 text-xl font-bold text-cafe-900">
+          <h2 className="mb-4 font-serif text-2xl font-semibold">
             {esHoy ? 'Hoy' : formatearDia(dia)}
           </h2>
 
@@ -237,12 +233,22 @@ function Dato({
   return (
     <div
       className={`rounded-2xl p-5 ${
-        destacado ? 'bg-cafe-600 text-white' : 'border border-cafe-200 bg-white text-cafe-900'
+        destacado ? 'bg-cafe-800 text-marfil' : 'border border-borde bg-white'
       }`}
     >
-      <div className={`text-sm ${destacado ? 'opacity-80' : 'text-cafe-500'}`}>{titulo}</div>
-      <div className="mt-1 text-3xl font-bold tabular-nums">{valor}</div>
-      {nota && <div className={`mt-1 text-xs ${destacado ? 'opacity-80' : 'text-cafe-400'}`}>{nota}</div>}
+      <div className={`text-xs font-bold ${destacado ? 'text-[#D8BE93]' : 'text-cafe-500'}`}>
+        {titulo}
+      </div>
+      {destacado ? (
+        <Importe className="mt-1 block text-4xl">{valor}</Importe>
+      ) : (
+        <div className="mt-1 text-3xl font-extrabold tabular-nums">{valor}</div>
+      )}
+      {nota && (
+        <div className={`mt-1 text-xs font-semibold ${destacado ? 'text-[#BFA57C]' : 'text-cafe-400'}`}>
+          {nota}
+        </div>
+      )}
     </div>
   )
 }

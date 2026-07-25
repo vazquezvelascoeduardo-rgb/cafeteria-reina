@@ -1,17 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useRef, useState } from 'react'
 import { db, type Categoria, type DatosEmisor, type Mesa, type Producto } from '../db'
-import {
-  Boton,
-  Campo,
-  Entrada,
-  Etiqueta,
-  Modal,
-  Tarjeta,
-  Titulo,
-  Vacio,
-  claseInput,
-} from '../components/ui'
+import { Boton, Campo, Entrada, Etiqueta, Modal, Tarjeta, Vacio, claseInput } from '../components/ui'
 import { eurosACentimos, formatearEuros, formatearNumero } from '../lib/dinero'
 import { exportarCopia, importarCopia } from '../lib/acciones'
 import { descargar, generarHojas } from '../lib/exportar'
@@ -49,15 +39,15 @@ export function Ajustes() {
 
   return (
     <div>
-      <Titulo>Ajustes</Titulo>
-
       <div className="mb-6 flex flex-wrap gap-2">
         {SECCIONES.map((s) => (
           <button
             key={s.id}
             onClick={() => setSeccion(s.id)}
             className={`rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-              seccion === s.id ? 'bg-cafe-600 text-white' : 'bg-white text-cafe-700 hover:bg-cafe-100'
+              seccion === s.id
+                ? 'bg-cafe-800 text-marfil'
+                : 'border border-borde bg-white text-cafe-600 hover:bg-cafe-100'
             }`}
           >
             {s.nombre}
@@ -286,6 +276,7 @@ function ModalProducto({
   onGuardar: (p: Producto) => void
   onBorrar: (id: number) => void
 }) {
+  const categorias = useLiveQuery(() => db.categorias.orderBy('orden').toArray(), [], [])
   const [borrador, setBorrador] = useState<Producto | null>(null)
   const [precio, setPrecio] = useState('')
   const [cargado, setCargado] = useState<Producto | null>(null)
@@ -315,6 +306,19 @@ function ModalProducto({
             placeholder="Ej. Café con leche"
           />
         </Campo>
+        <Campo etiqueta="Categoría" ayuda="Cámbiala para mover el producto de sitio en la carta">
+          <select
+            value={borrador.categoriaId}
+            onChange={(e) => setBorrador({ ...borrador, categoriaId: Number(e.target.value) })}
+            className={claseInput}
+          >
+            {categorias.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.nombre}
+              </option>
+            ))}
+          </select>
+        </Campo>
         <div className="grid grid-cols-2 gap-3">
           <Campo etiqueta="Precio de venta (€)" ayuda="Con IVA incluido, el de la carta">
             <Entrada
@@ -332,8 +336,8 @@ function ModalProducto({
               className={claseInput}
             >
               <option value={10}>10 % (hostelería)</option>
+              <option value={4}>4 % (pan común)</option>
               <option value={21}>21 %</option>
-              <option value={4}>4 %</option>
               <option value={0}>0 %</option>
             </select>
           </Campo>

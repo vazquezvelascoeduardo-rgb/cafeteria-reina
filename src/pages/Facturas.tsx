@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useEffect, useState } from 'react'
 import { db, type Cliente, type Factura } from '../db'
-import { Boton, Campo, Entrada, Modal, Titulo, Vacio, claseInput } from '../components/ui'
+import { BarraAcciones, Boton, Campo, Entrada, Modal, Vacio, claseInput } from '../components/ui'
 import { formatearEuros, formatearNumero } from '../lib/dinero'
 import { formatearDia, trimestreAnterior, trimestreDe } from '../lib/fechas'
 import {
@@ -38,15 +38,11 @@ export function Facturas({
 
   return (
     <div>
-      <Titulo
-        extra={
-          <Boton tono="principal" onClick={() => setCreando(true)} disabled={clientes.length === 0}>
-            + Nueva factura
-          </Boton>
-        }
-      >
-        Facturas
-      </Titulo>
+      <BarraAcciones>
+        <Boton tono="principal" onClick={() => setCreando(true)} disabled={clientes.length === 0}>
+          + Nueva factura
+        </Boton>
+      </BarraAcciones>
 
       {faltanDatosFiscales && (
         <div className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900">

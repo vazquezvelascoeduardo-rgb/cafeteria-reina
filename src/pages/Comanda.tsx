@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks'
 import { useMemo, useState } from 'react'
 import { db, type Cliente, type Producto } from '../db'
-import { Boton, Campo, Entrada, Etiqueta, Modal, Vacio, claseInput } from '../components/ui'
+import { Boton, Campo, Entrada, Etiqueta, Importe, Modal, Vacio, claseInput } from '../components/ui'
 import { TecladoNumerico } from '../components/TecladoNumerico'
 import { desglosarCambio, eurosACentimos, formatearEuros, sugerenciasPago, totalLinea } from '../lib/dinero'
 import {
@@ -58,40 +58,41 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
     <div className="flex h-full flex-col gap-4 lg:flex-row">
       {/* ------------------------------- Carta ------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="mb-3 flex flex-wrap items-center gap-3">
-          <Boton tono="suave" onClick={onSalir}>
-            ← Mesas
-          </Boton>
-          <h1 className="text-2xl font-bold text-cafe-900">{ticket.mesaNombre}</h1>
+        <div className="mb-3 flex items-center gap-2">
+          <div className="flex min-w-0 flex-1 gap-2 overflow-x-auto pb-1">
+            {busqueda === '' &&
+              categorias.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCategoriaActiva(c.id!)}
+                  className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
+                    c.id === categoriaMostrada
+                      ? 'bg-cafe-800 text-marfil'
+                      : 'border border-borde bg-white text-cafe-600 hover:bg-cafe-100'
+                  }`}
+                >
+                  {c.nombre}
+                </button>
+              ))}
+          </div>
           <input
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar producto…"
-            className={`${claseInput} ml-auto max-w-56`}
+            placeholder="Buscar…"
+            className={`${claseInput} w-36 shrink-0 sm:w-52`}
           />
         </div>
 
-        {!busqueda && (
-          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
-            {categorias.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setCategoriaActiva(c.id!)}
-                className={`shrink-0 rounded-xl px-4 py-2.5 text-sm font-bold transition-colors ${
-                  c.id === categoriaMostrada
-                    ? 'bg-cafe-600 text-white'
-                    : 'bg-white text-cafe-700 hover:bg-cafe-100'
-                }`}
-              >
-                {c.nombre}
-              </button>
-            ))}
-          </div>
-        )}
-
-        <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-y-auto pb-2 sm:grid-cols-3 xl:grid-cols-4">
+        <div className="grid flex-1 auto-rows-min grid-cols-2 gap-2.5 overflow-y-auto pb-2 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {visibles.map((p) => (
-            <BotonProducto key={p.id} producto={p} onClick={() => anadirProducto(ticketId, p)} />
+            <BotonProducto
+              key={p.id}
+              producto={p}
+              unidades={ticket.lineas
+                .filter((l) => l.productoId === p.id)
+                .reduce((s, l) => s + l.cantidad, 0)}
+              onClick={() => anadirProducto(ticketId, p)}
+            />
           ))}
           {visibles.length === 0 && (
             <div className="col-span-full">
@@ -104,53 +105,59 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
       </div>
 
       {/* ------------------------------ Comanda ------------------------------ */}
-      <div className="flex w-full shrink-0 flex-col rounded-2xl border border-cafe-200 bg-white lg:w-96">
-        <div className="flex items-center justify-between border-b border-cafe-100 px-4 py-3">
-          <span className="font-bold text-cafe-900">Comanda</span>
-          <span className="text-sm text-cafe-500">
+      <aside className="flex w-full shrink-0 flex-col rounded-2xl border border-borde bg-white shadow-[0_2px_24px_rgba(51,32,15,.05)] lg:w-[420px]">
+        <div className="flex items-center justify-between px-5 pt-4 pb-2.5">
+          <span className="rotulo">Comanda</span>
+          <span className="text-[12.5px] font-bold text-cafe-500">
             {articulos} {articulos === 1 ? 'artículo' : 'artículos'}
           </span>
         </div>
 
-        <div className="max-h-[45vh] min-h-24 flex-1 overflow-y-auto lg:max-h-none">
+        <div className="max-h-[38vh] min-h-24 flex-1 overflow-y-auto px-5 lg:max-h-none">
           {vacia ? (
-            <p className="px-4 py-10 text-center text-cafe-400">
-              Toca los productos de la izquierda para añadirlos.
+            <p className="px-2 py-10 text-center leading-relaxed font-semibold text-cafe-400">
+              Mesa libre.
+              <br />
+              Toca un producto para abrirla.
             </p>
           ) : (
-            <ul className="divide-y divide-cafe-100">
+            <ul>
               {ticket.lineas.map((linea, i) => (
-                <li key={i} className="flex items-center gap-2 px-3 py-2.5">
+                <li key={i} className="flex items-center gap-2.5 border-b border-[#F4EBDD] py-2.5">
                   <div className="min-w-0 flex-1">
-                    <div className="truncate font-semibold text-cafe-900">{linea.nombre}</div>
-                    <div className="text-xs text-cafe-500">
+                    <div className="truncate text-[14.5px] leading-tight font-bold">
+                      {linea.nombre}
+                    </div>
+                    <div className="text-[11.5px] font-semibold text-cafe-500">
                       {linea.cantidad} × {formatearEuros(linea.precio)}
                     </div>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     <button
                       onClick={() => cambiarCantidad(ticketId, i, -1)}
                       aria-label="Quitar uno"
-                      className="h-9 w-9 rounded-lg bg-cafe-100 text-lg font-bold text-cafe-700 hover:bg-cafe-200"
+                      className="h-8 w-8 rounded-[9px] border border-cafe-200 bg-cafe-100 text-lg font-extrabold text-cafe-600 hover:bg-cafe-200"
                     >
                       −
                     </button>
-                    <span className="w-7 text-center font-bold tabular-nums">{linea.cantidad}</span>
+                    <span className="w-6 text-center text-[15.5px] font-extrabold tabular-nums">
+                      {linea.cantidad}
+                    </span>
                     <button
                       onClick={() => cambiarCantidad(ticketId, i, 1)}
                       aria-label="Añadir uno"
-                      className="h-9 w-9 rounded-lg bg-cafe-100 text-lg font-bold text-cafe-700 hover:bg-cafe-200"
+                      className="h-8 w-8 rounded-[9px] border border-cafe-200 bg-cafe-100 text-lg font-extrabold text-cafe-600 hover:bg-cafe-200"
                     >
                       +
                     </button>
                   </div>
-                  <span className="w-20 text-right font-bold tabular-nums text-cafe-900">
+                  <span className="w-[68px] text-right text-[15.5px] font-extrabold tabular-nums">
                     {formatearEuros(totalLinea(linea))}
                   </span>
                   <button
                     onClick={() => quitarLinea(ticketId, i)}
                     aria-label={`Borrar ${linea.nombre}`}
-                    className="h-8 w-8 shrink-0 rounded-lg text-cafe-300 hover:bg-red-50 hover:text-red-600"
+                    className="h-7 w-7 shrink-0 rounded-lg text-cafe-300 hover:bg-[#FFF7F5] hover:text-anular"
                   >
                     ×
                   </button>
@@ -160,45 +167,60 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
           )}
         </div>
 
-        <div className="border-t border-cafe-100 p-4">
-          <div className="mb-4 flex items-baseline justify-between">
-            <span className="text-lg font-semibold text-cafe-700">Total</span>
-            <span className="text-4xl font-bold tabular-nums text-cafe-900">
-              {formatearEuros(ticket.total)}
+        <div className="border-t border-borde bg-lino px-5 py-3">
+          <div className="flex items-end justify-between">
+            <span className="text-xs font-extrabold tracking-widest text-cafe-500 uppercase">
+              Total
             </span>
-          </div>
-
-          <div className="grid gap-2">
-            <Boton tono="exito" disabled={vacia} onClick={() => setModal('cobro')} className="!py-4 !text-lg">
-              Cobrar
-            </Boton>
-            <div className="grid grid-cols-2 gap-2">
-              <Boton tono="suave" disabled={vacia} onClick={() => setModal('cuenta')}>
-                A cuenta
-              </Boton>
-              <Boton tono="suave" onClick={() => setModal('libre')}>
-                Otro concepto
-              </Boton>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Boton tono="neutro" onClick={() => setModal('mover')}>
-                Cambiar de mesa
-              </Boton>
-              <Boton
-                tono="neutro"
-                onClick={async () => {
-                  if (!vacia && !confirm('¿Seguro que quieres anular esta comanda entera?')) return
-                  await anularTicket(ticketId)
-                  onSalir()
-                }}
-                className="!text-red-600"
-              >
-                Anular
-              </Boton>
-            </div>
+            <Importe className="text-[40px] leading-none">{formatearEuros(ticket.total)}</Importe>
           </div>
         </div>
-      </div>
+
+        <div className="p-5 pt-4">
+          <Boton
+            tono="exito"
+            disabled={vacia}
+            onClick={() => setModal('cobro')}
+            className="mb-2 flex h-16 w-full items-center justify-center gap-3 !rounded-2xl !text-xl"
+          >
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M20 6L9 17l-5-5" />
+            </svg>
+            Cobrar
+          </Boton>
+
+          <div className="grid grid-cols-2 gap-2">
+            <Boton tono="neutro" disabled={vacia} onClick={() => setModal('cuenta')}>
+              A cuenta
+            </Boton>
+            <Boton tono="neutro" onClick={() => setModal('libre')}>
+              Otro concepto
+            </Boton>
+            <Boton tono="neutro" onClick={() => setModal('mover')}>
+              Cambiar mesa
+            </Boton>
+            <Boton
+              onClick={async () => {
+                if (!vacia && !confirm('¿Seguro que quieres anular esta comanda entera?')) return
+                await anularTicket(ticketId)
+                onSalir()
+              }}
+              className="border border-[#F0D3CC] bg-[#FFF7F5] text-anular hover:bg-[#FDEDE9]"
+            >
+              Anular
+            </Boton>
+          </div>
+        </div>
+      </aside>
 
       <ModalCobro
         abierto={modal === 'cobro'}
@@ -246,16 +268,31 @@ export function Comanda({ ticketId, onSalir }: { ticketId: number; onSalir: () =
   )
 }
 
-function BotonProducto({ producto, onClick }: { producto: Producto; onClick: () => void }) {
+function BotonProducto({
+  producto,
+  unidades,
+  onClick,
+}: {
+  producto: Producto
+  unidades: number
+  onClick: () => void
+}) {
   return (
     <button
       onClick={onClick}
-      className="flex h-24 flex-col justify-between rounded-xl border border-cafe-200 bg-white p-3 text-left transition-all hover:border-cafe-400 hover:bg-cafe-50 active:scale-[0.97]"
+      className="flex h-24 flex-col justify-between rounded-xl border border-borde bg-white p-3 text-left transition-all hover:border-oro-medio hover:shadow-[0_8px_18px_rgba(51,32,15,.10)] active:scale-[0.97]"
     >
-      <span className="line-clamp-2 text-sm leading-tight font-semibold text-cafe-900">
-        {producto.nombre}
+      <span className="line-clamp-2 text-[14.5px] leading-tight font-bold">{producto.nombre}</span>
+      <span className="flex items-end justify-between">
+        <span className="text-[17px] font-extrabold tabular-nums text-cafe-600">
+          {formatearEuros(producto.precio)}
+        </span>
+        {unidades > 0 && (
+          <span className="grid h-6 min-w-6 place-items-center rounded-full bg-cafe-800 px-1.5 text-xs font-extrabold text-marfil">
+            {unidades}
+          </span>
+        )}
       </span>
-      <span className="text-lg font-bold text-cafe-600">{formatearEuros(producto.precio)}</span>
     </button>
   )
 }
@@ -285,9 +322,11 @@ function ModalCobro({
 
   return (
     <Modal abierto={abierto} onCerrar={cerrar} titulo="Cobrar" ancho="max-w-md">
-      <div className="mb-4 rounded-2xl bg-cafe-600 px-5 py-4 text-white">
-        <div className="text-sm opacity-80">Total a cobrar</div>
-        <div className="text-5xl font-bold tabular-nums">{formatearEuros(total)}</div>
+      <div className="mb-4 rounded-2xl bg-cafe-800 px-5 py-4 text-marfil">
+        <div className="text-[11px] font-extrabold tracking-widest text-[#D8BE93] uppercase">
+          Importe a cobrar
+        </div>
+        <Importe className="text-5xl">{formatearEuros(total)}</Importe>
       </div>
 
       <Boton
@@ -301,20 +340,48 @@ function ModalCobro({
         Cobrar con tarjeta
       </Boton>
 
-      <div className="rounded-2xl bg-cafe-100 p-4">
-        <div className="mb-2 text-sm font-bold text-cafe-700">Efectivo: ¿con cuánto paga?</div>
+      <div className="rounded-2xl border border-borde bg-white p-4">
+        <div className="mb-3 text-sm font-bold text-cafe-600">Efectivo: ¿con cuánto paga?</div>
 
-        <div className="mb-3 flex items-center justify-between rounded-xl bg-white px-4 py-3">
-          <span className="text-3xl font-bold tabular-nums text-cafe-900">{texto || '0'}</span>
-          <span className="text-xl font-bold text-cafe-400">€</span>
+        <div className="mb-3 grid grid-cols-2 gap-2.5">
+          <div className="rounded-xl border border-cafe-200 bg-lino px-3 py-2">
+            <div className="text-[10.5px] font-extrabold tracking-widest text-cafe-500 uppercase">
+              Entrega
+            </div>
+            <div className="text-[27px] leading-tight font-extrabold tabular-nums">{texto || '0'}</div>
+          </div>
+          <div
+            className={`rounded-xl px-3 py-2 ${
+              cambio === null
+                ? 'border border-cafe-200 bg-lino'
+                : suficiente
+                  ? 'bg-cobro text-white'
+                  : 'bg-[#FFF7F5] text-anular'
+            }`}
+          >
+            <div className="text-[10.5px] font-extrabold tracking-widest uppercase opacity-75">
+              {cambio === null ? 'Cambio' : suficiente ? 'Cambio' : 'Faltan'}
+            </div>
+            <div className="text-[27px] leading-tight font-extrabold tabular-nums">
+              {cambio === null ? '—' : formatearEuros(Math.abs(cambio))}
+            </div>
+          </div>
         </div>
 
-        <div className="mb-3 flex flex-wrap gap-2">
+        {suficiente && cambio! > 0 && (
+          <p className="mb-3 text-xs font-semibold text-cafe-500">
+            {desglosarCambio(cambio!)
+              .map((d) => `${d.unidades} × ${formatearEuros(d.valor)}`)
+              .join('  ·  ')}
+          </p>
+        )}
+
+        <div className="mb-2.5 flex flex-wrap gap-1.5">
           {sugerenciasPago(total).map((s) => (
             <button
               key={s}
               onClick={() => setTexto((s / 100).toFixed(2).replace('.', ','))}
-              className="rounded-xl bg-white px-3 py-2 text-sm font-bold text-cafe-700 shadow-sm hover:bg-cafe-50"
+              className="rounded-xl border border-borde-fuerte bg-lino px-3 py-2 text-sm font-bold text-cafe-600 hover:bg-cafe-100"
             >
               {formatearEuros(s)}
             </button>
@@ -322,30 +389,6 @@ function ModalCobro({
         </div>
 
         <TecladoNumerico valor={texto} onCambio={setTexto} className="mb-3" />
-
-        {cambio !== null && (
-          <div
-            className={`mb-3 rounded-xl px-4 py-3 ${
-              suficiente ? 'bg-emerald-600 text-white' : 'bg-red-100 text-red-800'
-            }`}
-          >
-            {suficiente ? (
-              <>
-                <div className="text-sm opacity-90">Cambio a devolver</div>
-                <div className="text-4xl font-bold tabular-nums">{formatearEuros(cambio)}</div>
-                {cambio > 0 && (
-                  <div className="mt-1 text-xs opacity-90">
-                    {desglosarCambio(cambio)
-                      .map((d) => `${d.unidades} × ${formatearEuros(d.valor)}`)
-                      .join('  ·  ')}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="font-bold">Faltan {formatearEuros(-cambio)}</div>
-            )}
-          </div>
-        )}
 
         <Boton
           tono="exito"

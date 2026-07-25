@@ -43,7 +43,7 @@ export function TecladoNumerico({
         <button
           key={t}
           onClick={() => pulsar(t)}
-          className="h-14 rounded-xl bg-white text-xl font-bold text-cafe-800 shadow-sm transition-colors hover:bg-cafe-100 active:bg-cafe-200"
+          className="h-14 rounded-xl border border-borde bg-white text-xl font-extrabold text-cafe-900 transition-all hover:bg-cafe-100 active:scale-[.96]"
         >
           {t === 'borrar' ? '⌫' : t}
         </button>
