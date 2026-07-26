@@ -31,6 +31,11 @@ import {
 } from '../lib/exportar'
 import { crearZip } from '../lib/zip'
 import {
+  estadoAlmacenamiento,
+  formatearEspacio,
+  type EstadoAlmacenamiento,
+} from '../lib/almacenamiento'
+import {
   anadirCarpeta,
   copiarAhora,
   hayApiDeCarpetas,
@@ -1132,9 +1137,16 @@ function CopiaSeguridad() {
 
   const soportado = hayApiDeCarpetas()
 
+  const [almacenamiento, setAlmacenamiento] = useState<EstadoAlmacenamiento>({
+    protegido: false,
+    ocupado: null,
+    soportado: false,
+  })
+
   const refrescarEstado = async () => {
     setCarpetas(await listarCarpetas())
     setDiaUltimaCopia(await ultimaCopia())
+    setAlmacenamiento(await estadoAlmacenamiento())
   }
 
   useEffect(() => {
@@ -1393,6 +1405,41 @@ function CopiaSeguridad() {
             </div>
           </>
         )}
+      </Tarjeta>
+
+      <Tarjeta>
+        <div className="mb-1 flex flex-wrap items-center gap-3">
+          <h2 className="text-lg font-bold text-cafe-900">Dónde viven los datos</h2>
+          {almacenamiento.soportado &&
+            (almacenamiento.protegido ? (
+              <Etiqueta tono="verde">Protegidos</Etiqueta>
+            ) : (
+              <Etiqueta tono="ambar">Sin proteger</Etiqueta>
+            ))}
+        </div>
+        <p className="mb-3 text-sm text-cafe-600">
+          Las ventas, las mesas y las facturas se guardan dentro de este ordenador
+          {almacenamiento.ocupado !== null && (
+            <> y ocupan ahora mismo <b>{formatearEspacio(almacenamiento.ocupado)}</b></>
+          )}
+          . Aguantan cerrar la aplicación, reiniciar y apagar el equipo.
+        </p>
+        <p className="text-sm text-cafe-600">
+          {almacenamiento.protegido ? (
+            <>
+              El navegador se ha comprometido a <b>no borrarlos nunca</b> por su cuenta. Solo
+              desaparecerían si alguien los borra a mano desde las opciones del navegador, o con un
+              programa de limpieza tipo CCleaner. Por eso conviene tener puesta la copia automática
+              de aquí arriba.
+            </>
+          ) : (
+            <>
+              Para que el navegador se comprometa a no borrarlos, <b>instala la aplicación</b> desde
+              el menú de Chrome o Edge (⋮ → Instalar). Mientras tanto, la copia automática es la que
+              te cubre.
+            </>
+          )}
+        </p>
       </Tarjeta>
 
       <Tarjeta>
